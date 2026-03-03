@@ -13,9 +13,11 @@ import {
   CheckCircle2,
   XCircle,
   Plus,
-  Save
+  Save,
+  Shuffle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import * as xlsx from 'xlsx';
 
 interface Option {
   id: number;
@@ -28,6 +30,14 @@ interface Question {
   definition: string;
   options: Option[];
   correctId: number;
+}
+
+interface StudySet {
+  id: string;
+  title: string;
+  questions: Question[];
+  createdAt: number;
+  lastScore?: { correct: number; total: number };
 }
 
 const sanitizeQuestions = (qs: Question[]): Question[] => {
@@ -93,22 +103,46 @@ const INITIAL_QUESTIONS: Question[] = [
 ];
 
 export default function App() {
-  const [storageQuestions, setStorageQuestions] = useState<Question[]>(() => {
-    const saved = localStorage.getItem('english_quiz_questions');
-    const raw = saved ? JSON.parse(saved) : INITIAL_QUESTIONS;
-    return sanitizeQuestions(raw);
+  const [studySets, setStudySets] = useState<StudySet[]>(() => {
+    const saved = localStorage.getItem('english_quiz_sets');
+    if (saved) return JSON.parse(saved);
+    
+    const oldSaved = localStorage.getItem('english_quiz_questions');
+    const raw = oldSaved ? JSON.parse(oldSaved) : INITIAL_QUESTIONS;
+    return [{
+      id: 'default',
+      title: 'Học phần mặc định',
+      questions: sanitizeQuestions(raw),
+      createdAt: Date.now()
+    }];
   });
-  const [quizQuestions, setQuizQuestions] = useState<Question[]>(() => {
-    const saved = localStorage.getItem('english_quiz_questions');
-    const raw = saved ? JSON.parse(saved) : INITIAL_QUESTIONS;
-    return sanitizeQuestions(raw);
-  });
+  const [currentSetId, setCurrentSetId] = useState<string | null>(null);
+  const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [view, setView] = useState<'quiz' | 'editor' | 'summary'>('quiz');
+  const [view, setView] = useState<'dashboard' | 'quiz' | 'editor' | 'summary'>('dashboard');
   const [wrongQuestions, setWrongQuestions] = useState<Question[]>([]);
+  const [questionStatus, setQuestionStatus] = useState<('unanswered' | 'correct' | 'incorrect')[]>([]);
+
+  // Initialize question status
+  useEffect(() => {
+    setQuestionStatus(new Array(quizQuestions.length).fill('unanswered'));
+  }, [quizQuestions]);
+
+  // Save score when finishing quiz
+  useEffect(() => {
+    if (view === 'summary' && currentSetId) {
+      setStudySets(prev => prev.map(s => {
+        if (s.id === currentSetId) {
+          const correctCount = quizQuestions.length - wrongQuestions.length;
+          return { ...s, lastScore: { correct: correctCount, total: quizQuestions.length } };
+        }
+        return s;
+      }));
+    }
+  }, [view, currentSetId, quizQuestions.length, wrongQuestions.length]);
 
   // Editor state
   const [editTerms, setEditTerms] = useState<{ id: number; term: string; definition: string }[]>([]);
@@ -116,8 +150,8 @@ export default function App() {
 
   // Sync to localStorage
   useEffect(() => {
-    localStorage.setItem('english_quiz_questions', JSON.stringify(storageQuestions));
-  }, [storageQuestions]);
+    localStorage.setItem('english_quiz_sets', JSON.stringify(studySets));
+  }, [studySets]);
 
   const handleSelect = (id: number) => {
     if (showFeedback) return;
@@ -126,6 +160,14 @@ export default function App() {
     const correct = id === currentQuestion.correctId;
     setIsCorrect(correct);
     setShowFeedback(true);
+
+    setQuestionStatus(prev => {
+      const newStatus = [...prev];
+      if (newStatus[currentIdx] === 'unanswered') {
+        newStatus[currentIdx] = correct ? 'correct' : 'incorrect';
+      }
+      return newStatus;
+    });
 
     if (!correct) {
       setWrongQuestions(prev => {
@@ -136,33 +178,39 @@ export default function App() {
 
     if (correct) {
       setTimeout(() => {
-        if (currentIdx < quizQuestions.length - 1) {
-          handleNext();
-        } else {
-          setView('summary');
-        }
+        handleNext();
       }, 1500);
     }
   };
 
   const handleNext = () => {
-    setCurrentIdx((prev) => (prev + 1) % quizQuestions.length);
-    setSelectedId(null);
-    setIsCorrect(null);
-    setShowFeedback(false);
+    if (currentIdx < quizQuestions.length - 1) {
+      setCurrentIdx((prev) => prev + 1);
+      setSelectedId(null);
+      setIsCorrect(null);
+      setShowFeedback(false);
+    } else {
+      setView('summary');
+    }
   };
 
   const openEditor = () => {
-    // Map existing questions to editor format
-    const terms = storageQuestions.map(q => {
-      const correctOption = q.options.find(o => o.id === q.correctId);
-      return {
-        id: q.id,
-        term: correctOption ? `${correctOption.text}(${correctOption.partOfSpeech})` : '',
-        definition: q.definition
-      };
-    });
-    setEditTerms(terms.length > 0 ? terms : [{ id: Date.now(), term: '', definition: '' }]);
+    const currentSet = studySets.find(s => s.id === currentSetId);
+    if (currentSet) {
+      setEditTitle(currentSet.title);
+      const terms = currentSet.questions.map(q => {
+        const correctOption = q.options.find(o => o.id === q.correctId);
+        return {
+          id: q.id,
+          term: correctOption ? `${correctOption.text}(${correctOption.partOfSpeech})` : '',
+          definition: q.definition
+        };
+      });
+      setEditTerms(terms.length > 0 ? terms : [{ id: Date.now(), term: '', definition: '' }]);
+    } else {
+      setEditTitle('Học phần mới');
+      setEditTerms([{ id: Date.now(), term: '', definition: '' }]);
+    }
     setView('editor');
   };
 
@@ -224,11 +272,24 @@ export default function App() {
       });
 
     if (newQuestions.length > 0) {
-      setStorageQuestions(newQuestions);
+      if (currentSetId) {
+        setStudySets(studySets.map(s => s.id === currentSetId ? { ...s, title: editTitle, questions: newQuestions } : s));
+      } else {
+        const newSet: StudySet = {
+          id: Date.now().toString(),
+          title: editTitle,
+          questions: newQuestions,
+          createdAt: Date.now()
+        };
+        setStudySets([...studySets, newSet]);
+        setCurrentSetId(newSet.id);
+      }
       setQuizQuestions(newQuestions);
       setCurrentIdx(0);
+      setView('quiz');
+    } else {
+      setView('dashboard');
     }
-    setView('quiz');
   };
 
   const addTermRow = () => {
@@ -255,28 +316,67 @@ export default function App() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const content = event.target?.result as string;
-      const lines = content.split('\n');
-      const newTerms = lines
-        .map(line => {
-          const [term, ...defParts] = line.split(/[:\-,]/);
-          const definition = defParts.join(':').trim();
-          if (term && definition) {
-            return { id: Date.now() + Math.random(), term: term.trim(), definition };
-          }
-          return null;
-        })
-        .filter((t): t is { id: number; term: string; definition: string } => t !== null);
+      const content = event.target?.result;
+      if (!content) return;
+
+      let newTerms: { id: number; term: string; definition: string }[] = [];
+
+      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        // Parse Excel file
+        const workbook = xlsx.read(content, { type: 'binary' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Convert to array of arrays
+        const data = xlsx.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+        
+        newTerms = data
+          .filter(row => row && row.length >= 2) // Ensure at least 2 columns exist
+          .map(row => {
+            const term = String(row[0] || '').trim();
+            const definition = String(row[1] || '').trim();
+            if (term && definition) {
+              return { id: Date.now() + Math.random(), term, definition };
+            }
+            return null;
+          })
+          .filter((t): t is { id: number; term: string; definition: string } => t !== null);
+      } else {
+        // Parse text/csv file
+        const textContent = content as string;
+        const lines = textContent.split('\n');
+        newTerms = lines
+          .map(line => {
+            const [term, ...defParts] = line.split(/[:\-,]/);
+            const definition = defParts.join(':').trim();
+            if (term && definition) {
+              return { id: Date.now() + Math.random(), term: term.trim(), definition };
+            }
+            return null;
+          })
+          .filter((t): t is { id: number; term: string; definition: string } => t !== null);
+      }
 
       if (newTerms.length > 0) {
         setEditTerms([...editTerms, ...newTerms]);
       }
     };
-    reader.readAsText(file);
+
+    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+      reader.readAsBinaryString(file);
+    } else {
+      reader.readAsText(file);
+    }
+    
+    // Reset input so the same file can be uploaded again if needed
+    e.target.value = '';
   };
 
   const handleRestart = () => {
-    setQuizQuestions(storageQuestions);
+    const currentSet = studySets.find(s => s.id === currentSetId);
+    if (currentSet) {
+      setQuizQuestions(currentSet.questions);
+    }
     setCurrentIdx(0);
     setSelectedId(null);
     setIsCorrect(null);
@@ -295,7 +395,101 @@ export default function App() {
     setView('quiz');
   };
 
-  const currentQuestion = quizQuestions[currentIdx] || quizQuestions[0];
+  const handleShuffleQuiz = () => {
+    const shuffled = [...quizQuestions].sort(() => Math.random() - 0.5);
+    setQuizQuestions(shuffled);
+    setCurrentIdx(0);
+    setSelectedId(null);
+    setIsCorrect(null);
+    setShowFeedback(false);
+  };
+
+  const currentQuestion = quizQuestions[currentIdx] || INITIAL_QUESTIONS[0];
+
+  if (view === 'dashboard') {
+    return (
+      <div className="min-h-screen bg-[#0a0b1e] text-white flex flex-col font-sans p-6">
+        <header className="flex items-center justify-between py-6 max-w-5xl mx-auto w-full border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full border-2 border-indigo-500 flex items-center justify-center">
+              <CircleDot className="w-6 h-6 text-indigo-400" />
+            </div>
+            <h1 className="text-2xl font-bold">Thư viện của bạn</h1>
+          </div>
+          <button 
+            onClick={() => {
+              setCurrentSetId(null);
+              setEditTitle('Học phần mới');
+              setEditTerms([{ id: Date.now(), term: '', definition: '' }]);
+              setView('editor');
+            }}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+          >
+            <Plus className="w-5 h-5" /> Tạo học phần
+          </button>
+        </header>
+
+        <main className="flex-1 max-w-5xl mx-auto w-full py-12">
+          {studySets.length === 0 ? (
+            <div className="text-center py-20 opacity-50">
+              <p>Bạn chưa có học phần nào. Hãy tạo một học phần mới để bắt đầu!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {studySets.map(set => (
+                <div key={set.id} className="bg-[#15162c] border border-white/10 rounded-2xl p-6 hover:border-indigo-500/50 transition-colors group relative flex flex-col">
+                  <div className="flex-1 cursor-pointer" onClick={() => {
+                    setCurrentSetId(set.id);
+                    setQuizQuestions(set.questions);
+                    setCurrentIdx(0);
+                    setSelectedId(null);
+                    setIsCorrect(null);
+                    setShowFeedback(false);
+                    setWrongQuestions([]);
+                    setView('quiz');
+                  }}>
+                    <h3 className="text-xl font-bold mb-2 group-hover:text-indigo-400 transition-colors">{set.title}</h3>
+                    <p className="text-white/40 text-sm">{set.questions.length} thuật ngữ</p>
+                  </div>
+                  
+                  <div className="mt-6 pt-4 border-t border-white/5 flex justify-between items-center">
+                    <div className="flex flex-col">
+                      <span className="text-xs text-white/30">{new Date(set.createdAt).toLocaleDateString('vi-VN')}</span>
+                      {set.lastScore && (
+                        <span className="text-xs font-bold mt-1 text-emerald-400">
+                          Tiến độ: {set.lastScore.correct}/{set.lastScore.total} đúng
+                        </span>
+                      )}
+                    </div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentSetId(set.id);
+                        setEditTitle(set.title);
+                        const terms = set.questions.map(q => {
+                          const correctOption = q.options.find(o => o.id === q.correctId);
+                          return {
+                            id: q.id,
+                            term: correctOption ? `${correctOption.text}(${correctOption.partOfSpeech})` : '',
+                            definition: q.definition
+                          };
+                        });
+                        setEditTerms(terms.length > 0 ? terms : [{ id: Date.now(), term: '', definition: '' }]);
+                        setView('editor');
+                      }}
+                      className="text-white/40 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
 
   if (view === 'summary') {
     return (
@@ -320,6 +514,23 @@ export default function App() {
             </div>
           </div>
 
+          <div className="flex flex-col gap-3 pt-4 pb-4">
+            {wrongQuestions.length > 0 && (
+              <button 
+                onClick={handleReviewWrong}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-indigo-500/20"
+              >
+                Luyện lại các từ sai ({wrongQuestions.length})
+              </button>
+            )}
+            <button 
+              onClick={handleRestart}
+              className="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-2xl transition-all border border-white/10"
+            >
+              Học lại từ đầu
+            </button>
+          </div>
+
           {wrongQuestions.length > 0 && (
             <div className="space-y-4">
               <h2 className="text-lg font-bold">Danh sách từ cần luyện lại:</h2>
@@ -342,26 +553,18 @@ export default function App() {
             </div>
           )}
 
-          <div className="flex flex-col gap-3 pt-8">
-            {wrongQuestions.length > 0 && (
-              <button 
-                onClick={handleReviewWrong}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-indigo-500/20"
-              >
-                Luyện lại các từ sai
-              </button>
-            )}
-            <button 
-              onClick={handleRestart}
-              className="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-2xl transition-all border border-white/10"
-            >
-              Học lại từ đầu
-            </button>
+          <div className="flex flex-col gap-3 pt-4 border-t border-white/10">
             <button 
               onClick={() => setView('editor')}
               className="w-full text-indigo-400 font-bold py-2 hover:text-indigo-300 transition-colors"
             >
               Chỉnh sửa bộ từ vựng
+            </button>
+            <button 
+              onClick={() => setView('dashboard')}
+              className="w-full text-white/40 font-bold py-2 hover:text-white/60 transition-colors"
+            >
+              Về thư viện
             </button>
           </div>
         </div>
@@ -376,7 +579,7 @@ export default function App() {
           type="file" 
           id="file-import" 
           className="hidden" 
-          accept=".txt,.csv" 
+          accept=".txt,.csv,.xlsx,.xls" 
           onChange={handleFileUpload}
         />
         {/* Editor Top Header */}
@@ -414,11 +617,11 @@ export default function App() {
         {/* Editor Sub Header */}
         <div className="px-6 py-6 flex items-center justify-between max-w-5xl mx-auto w-full">
           <button 
-            onClick={() => setView('quiz')}
+            onClick={() => setView(currentSetId ? 'quiz' : 'dashboard')}
             className="flex items-center gap-2 text-indigo-400 font-bold hover:text-indigo-300"
           >
             <ChevronDown className="w-5 h-5 rotate-90" />
-            Trở về học phần
+            {currentSetId ? 'Trở về học phần' : 'Hủy'}
           </button>
           <button 
             onClick={handleSaveEditor}
@@ -555,15 +758,25 @@ export default function App() {
     <div className="min-h-screen bg-[#0a0b1e] text-white flex flex-col font-sans selection:bg-brand-accent/30">
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
+        <div 
+          className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={() => setView('dashboard')}
+        >
           <div className="w-8 h-8 rounded-full border-2 border-indigo-500 flex items-center justify-center">
             <CircleDot className="w-5 h-5 text-indigo-400" />
           </div>
-          <span className="font-semibold text-lg">Học</span>
-          <ChevronDown className="w-4 h-4 opacity-60" />
+          <span className="font-semibold text-lg">Thư viện</span>
+          <ChevronDown className="w-4 h-4 opacity-60 rotate-90" />
         </div>
 
         <div className="flex items-center gap-4">
+          <button 
+            onClick={handleShuffleQuiz}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            title="Xáo trộn câu hỏi"
+          >
+            <Shuffle className="w-6 h-6 opacity-70" />
+          </button>
           <button 
             onClick={openEditor}
             className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-1.5 rounded-full text-sm font-bold transition-all"
@@ -587,23 +800,30 @@ export default function App() {
       <div className="px-6 mt-4">
         <div className="flex items-center gap-3">
           <span className="text-emerald-400 font-bold bg-emerald-400/10 w-8 h-8 flex items-center justify-center rounded-full text-sm">
-            {currentIdx}
+            {currentIdx + 1}
           </span>
-          <div className="flex-1 flex gap-2 h-2.5">
-            {quizQuestions.map((_, i) => (
-              <div 
-                key={i} 
-                className={`flex-1 rounded-full overflow-hidden bg-white/10`}
-              >
-                <div 
-                  className={`h-full transition-all duration-500 ${
-                    i < currentIdx ? 'bg-emerald-400' : 
-                    i === currentIdx ? 'bg-indigo-500' : 'bg-transparent'
-                  }`}
-                  style={{ width: i <= currentIdx ? '100%' : '0%' }}
-                />
-              </div>
-            ))}
+          <div className="flex-1 flex gap-1 h-2.5">
+            {quizQuestions.map((_, i) => {
+              const status = questionStatus[i];
+              let innerColor = 'bg-transparent';
+              
+              if (status === 'correct') {
+                innerColor = 'bg-emerald-500';
+              } else if (status === 'incorrect') {
+                innerColor = 'bg-red-500';
+              } else if (i === currentIdx) {
+                innerColor = 'bg-indigo-500';
+              }
+
+              return (
+                <div key={i} className="flex-1 rounded-full overflow-hidden bg-white/10">
+                  <div 
+                    className={`h-full transition-all duration-500 ${innerColor}`}
+                    style={{ width: (status !== 'unanswered' || i === currentIdx) ? '100%' : '0%' }}
+                  />
+                </div>
+              );
+            })}
           </div>
           <span className="text-white/40 font-bold bg-white/5 w-8 h-8 flex items-center justify-center rounded-full text-sm">
             {quizQuestions.length}
