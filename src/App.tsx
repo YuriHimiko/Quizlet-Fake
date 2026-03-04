@@ -8,13 +8,15 @@ import {
   ChevronDown, 
   Settings, 
   X, 
+  Check,
   Volume2, 
   CircleDot,
   CheckCircle2,
   XCircle,
   Plus,
   Save,
-  Shuffle
+  Shuffle,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as xlsx from 'xlsx';
@@ -38,6 +40,7 @@ interface StudySet {
   questions: Question[];
   createdAt: number;
   lastScore?: { correct: number; total: number };
+  needsReview?: number[];
 }
 
 const sanitizeQuestions = (qs: Question[]): Question[] => {
@@ -122,9 +125,13 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'quiz' | 'editor' | 'summary'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'quiz' | 'flashcard' | 'editor' | 'summary'>('dashboard');
   const [wrongQuestions, setWrongQuestions] = useState<Question[]>([]);
   const [questionStatus, setQuestionStatus] = useState<('unanswered' | 'correct' | 'incorrect')[]>([]);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isFlipped, setIsFlipped] = useState(false);
+
+  const [previousView, setPreviousView] = useState<'quiz' | 'flashcard'>('quiz');
 
   // Initialize question status
   useEffect(() => {
@@ -136,13 +143,28 @@ export default function App() {
     if (view === 'summary' && currentSetId) {
       setStudySets(prev => prev.map(s => {
         if (s.id === currentSetId) {
-          const correctCount = quizQuestions.length - wrongQuestions.length;
-          return { ...s, lastScore: { correct: correctCount, total: quizQuestions.length } };
+          const isReviewSession = quizQuestions.length < s.questions.length;
+          const newlyCorrectCount = quizQuestions.length - wrongQuestions.length;
+          const needsReviewIds = wrongQuestions.map(q => q.id);
+          
+          let newCorrect = newlyCorrectCount;
+          let newTotal = quizQuestions.length;
+
+          if (isReviewSession && s.lastScore) {
+            newCorrect = s.lastScore.correct + newlyCorrectCount;
+            newTotal = s.questions.length;
+          }
+
+          return { 
+            ...s, 
+            lastScore: { correct: newCorrect, total: newTotal },
+            needsReview: needsReviewIds
+          };
         }
         return s;
       }));
     }
-  }, [view, currentSetId, quizQuestions.length, wrongQuestions.length]);
+  }, [view, currentSetId, quizQuestions.length, wrongQuestions]);
 
   // Editor state
   const [editTerms, setEditTerms] = useState<{ id: number; term: string; definition: string }[]>([]);
@@ -152,6 +174,61 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('english_quiz_sets', JSON.stringify(studySets));
   }, [studySets]);
+
+  // Keyboard navigation for flashcards
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (view === 'flashcard') {
+        if (e.key === 'ArrowLeft') {
+          handleMarkFlashcard(false);
+        } else if (e.key === 'ArrowRight') {
+          handleMarkFlashcard(true);
+        } else if (e.key === ' ' || e.code === 'Space') {
+          e.preventDefault();
+          setIsFlipped(prev => {
+            const newState = !prev;
+            if (newState) {
+              const currentQ = quizQuestions[currentIdx];
+              if (currentQ) {
+                const correctOpt = currentQ.options.find(o => o.id === currentQ.correctId);
+                if (correctOpt) {
+                  const utterance = new SpeechSynthesisUtterance(correctOpt.text);
+                  utterance.lang = 'en-US';
+                  window.speechSynthesis.speak(utterance);
+                }
+              }
+            }
+            return newState;
+          });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [view, quizQuestions, currentIdx, wrongQuestions]);
+
+  const handleMarkFlashcard = (known: boolean) => {
+    const currentQ = quizQuestions[currentIdx];
+    if (!currentQ) return;
+
+    if (!known) {
+      if (!wrongQuestions.find(q => q.id === currentQ.id)) {
+        setWrongQuestions(prev => [...prev, currentQ]);
+      }
+    } else {
+      setWrongQuestions(prev => prev.filter(q => q.id !== currentQ.id));
+    }
+
+    setIsFlipped(false);
+    setTimeout(() => {
+      if (currentIdx < quizQuestions.length - 1) {
+        setCurrentIdx(prev => prev + 1);
+      } else {
+        setView('summary');
+      }
+    }, 150);
+  };
 
   const handleSelect = (id: number) => {
     if (showFeedback) return;
@@ -382,7 +459,8 @@ export default function App() {
     setIsCorrect(null);
     setShowFeedback(false);
     setWrongQuestions([]);
-    setView('quiz');
+    setIsFlipped(false);
+    setView(previousView);
   };
 
   const handleReviewWrong = () => {
@@ -392,7 +470,8 @@ export default function App() {
     setIsCorrect(null);
     setShowFeedback(false);
     setWrongQuestions([]);
-    setView('quiz');
+    setIsFlipped(false);
+    setView(previousView);
   };
 
   const handleShuffleQuiz = () => {
@@ -438,18 +517,61 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {studySets.map(set => (
                 <div key={set.id} className="bg-[#15162c] border border-white/10 rounded-2xl p-6 hover:border-indigo-500/50 transition-colors group relative flex flex-col">
-                  <div className="flex-1 cursor-pointer" onClick={() => {
-                    setCurrentSetId(set.id);
-                    setQuizQuestions(set.questions);
-                    setCurrentIdx(0);
-                    setSelectedId(null);
-                    setIsCorrect(null);
-                    setShowFeedback(false);
-                    setWrongQuestions([]);
-                    setView('quiz');
-                  }}>
+                  <div className="flex-1">
                     <h3 className="text-xl font-bold mb-2 group-hover:text-indigo-400 transition-colors">{set.title}</h3>
-                    <p className="text-white/40 text-sm">{set.questions.length} thuật ngữ</p>
+                    <p className="text-white/40 text-sm mb-4">{set.questions.length} thuật ngữ</p>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => {
+                            setCurrentSetId(set.id);
+                            setQuizQuestions(set.questions);
+                            setCurrentIdx(0);
+                            setSelectedId(null);
+                            setIsCorrect(null);
+                            setShowFeedback(false);
+                            setWrongQuestions([]);
+                            setPreviousView('quiz');
+                            setView('quiz');
+                          }}
+                          className="flex-1 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white text-sm font-bold py-2 rounded-lg transition-colors border border-indigo-500/30"
+                        >
+                          Trắc nghiệm
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setCurrentSetId(set.id);
+                            setQuizQuestions(set.questions);
+                            setCurrentIdx(0);
+                            setIsFlipped(false);
+                            setPreviousView('flashcard');
+                            setView('flashcard');
+                          }}
+                          className="flex-1 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-sm font-bold py-2 rounded-lg transition-colors border border-emerald-500/30"
+                        >
+                          Thẻ ghi nhớ
+                        </button>
+                      </div>
+                      {set.needsReview && set.needsReview.length > 0 && (
+                        <button 
+                          onClick={() => {
+                            setCurrentSetId(set.id);
+                            const reviewQuestions = set.questions.filter(q => set.needsReview?.includes(q.id));
+                            setQuizQuestions(reviewQuestions);
+                            setCurrentIdx(0);
+                            setSelectedId(null);
+                            setIsCorrect(null);
+                            setShowFeedback(false);
+                            setWrongQuestions([]);
+                            setPreviousView('quiz');
+                            setView('quiz');
+                          }}
+                          className="w-full bg-orange-600/20 hover:bg-orange-600 text-orange-300 hover:text-white text-sm font-bold py-2 rounded-lg transition-colors border border-orange-500/30"
+                        >
+                          Ôn tập {set.needsReview.length} từ sai
+                        </button>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="mt-6 pt-4 border-t border-white/5 flex justify-between items-center">
@@ -461,31 +583,173 @@ export default function App() {
                         </span>
                       )}
                     </div>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCurrentSetId(set.id);
-                        setEditTitle(set.title);
-                        const terms = set.questions.map(q => {
-                          const correctOption = q.options.find(o => o.id === q.correctId);
-                          return {
-                            id: q.id,
-                            term: correctOption ? `${correctOption.text}(${correctOption.partOfSpeech})` : '',
-                            definition: q.definition
-                          };
-                        });
-                        setEditTerms(terms.length > 0 ? terms : [{ id: Date.now(), term: '', definition: '' }]);
-                        setView('editor');
-                      }}
-                      className="text-white/40 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </button>
+                    {deleteConfirmId === set.id ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-red-400 font-bold mr-1">Xoá?</span>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setStudySets(studySets.filter(s => s.id !== set.id));
+                            setDeleteConfirmId(null);
+                            if (currentSetId === set.id) setCurrentSetId(null);
+                          }}
+                          className="text-white bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-xs font-bold transition-colors"
+                        >
+                          Có
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirmId(null);
+                          }}
+                          className="text-white/60 hover:text-white px-3 py-1 rounded text-xs transition-colors"
+                        >
+                          Hủy
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentSetId(set.id);
+                            setEditTitle(set.title);
+                            const terms = set.questions.map(q => {
+                              const correctOption = q.options.find(o => o.id === q.correctId);
+                              return {
+                                id: q.id,
+                                term: correctOption ? `${correctOption.text}(${correctOption.partOfSpeech})` : '',
+                                definition: q.definition
+                              };
+                            });
+                            setEditTerms(terms.length > 0 ? terms : [{ id: Date.now(), term: '', definition: '' }]);
+                            setView('editor');
+                          }}
+                          className="text-white/40 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors"
+                          title="Chỉnh sửa"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirmId(set.id);
+                          }}
+                          className="text-white/40 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-colors"
+                          title="Xoá học phần"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           )}
+        </main>
+      </div>
+    );
+  }
+
+  if (view === 'flashcard') {
+    const correctOption = currentQuestion.options.find(o => o.id === currentQuestion.correctId);
+    const word = correctOption ? `${correctOption.text}` : '';
+    const pos = correctOption ? correctOption.partOfSpeech : '';
+    const definition = currentQuestion.definition;
+
+    return (
+      <div className="min-h-screen bg-[#0a0b1e] text-white flex flex-col font-sans">
+        <header className="flex items-center justify-between p-6 border-b border-white/10">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setView('dashboard')}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <h1 className="text-xl font-bold">Thẻ ghi nhớ</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-white/40 font-bold">{currentIdx + 1} / {quizQuestions.length}</span>
+            <button 
+              onClick={handleShuffleQuiz}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors ml-2"
+              title="Xáo trộn"
+            >
+              <Shuffle className="w-5 h-5 opacity-70" />
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-1 flex flex-col items-center justify-center p-6 max-w-3xl mx-auto w-full">
+          {/* Progress bar */}
+          <div className="w-full max-w-3xl mb-8 flex gap-1 h-2">
+            {quizQuestions.map((_, idx) => (
+              <div 
+                key={idx} 
+                className={`flex-1 rounded-full transition-colors ${
+                  idx === currentIdx ? 'bg-indigo-500' : 
+                  idx < currentIdx ? 'bg-white/20' : 'bg-white/5'
+                }`}
+              />
+            ))}
+          </div>
+
+          <div 
+            className="w-full aspect-[3/2] max-h-[400px] [perspective:1000px] cursor-pointer"
+            onClick={() => {
+              const newFlippedState = !isFlipped;
+              setIsFlipped(newFlippedState);
+              if (newFlippedState) {
+                speak(word);
+              }
+            }}
+          >
+            <motion.div 
+              className="w-full h-full relative [transform-style:preserve-3d] transition-transform duration-500"
+              animate={{ rotateX: isFlipped ? 180 : 0 }}
+            >
+              {/* Front (Definition) */}
+              <div className="absolute inset-0 [backface-visibility:hidden] bg-[#15162c] border-2 border-white/10 rounded-3xl flex flex-col items-center justify-center p-8 shadow-2xl">
+                <span className="text-white/40 text-sm font-bold uppercase tracking-widest mb-4">Định nghĩa</span>
+                <h2 className="text-3xl font-bold text-center leading-relaxed">{definition}</h2>
+                <div className="absolute bottom-6 text-white/30 text-sm">Nhấn để lật thẻ</div>
+              </div>
+
+              {/* Back (Word) */}
+              <div className="absolute inset-0 [backface-visibility:hidden] bg-indigo-600 border-2 border-indigo-500 rounded-3xl flex flex-col items-center justify-center p-8 shadow-2xl [transform:rotateX(180deg)]">
+                <span className="text-white/60 text-sm font-bold uppercase tracking-widest mb-4">Thuật ngữ</span>
+                <h2 className="text-5xl font-bold text-center">{word}</h2>
+                {pos && <span className="text-indigo-200 font-medium mt-4 text-xl">({pos})</span>}
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    speak(word);
+                  }}
+                  className="absolute top-6 right-6 p-3 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <Volume2 className="w-6 h-6 text-white/80" />
+                </button>
+                <div className="absolute bottom-6 text-white/60 text-sm">Nhấn để lật thẻ</div>
+              </div>
+            </motion.div>
+          </div>
+
+          <div className="flex items-center gap-6 mt-12 w-full max-w-sm mx-auto justify-center">
+            <button 
+              onClick={() => handleMarkFlashcard(false)}
+              className="flex-1 py-6 bg-[#2a2b4a] hover:bg-[#3a3b5a] rounded-full transition-colors flex justify-center items-center"
+            >
+              <X className="w-10 h-10 text-[#e65c2c]" strokeWidth={3} />
+            </button>
+            <button 
+              onClick={() => handleMarkFlashcard(true)}
+              className="flex-1 py-6 bg-[#2a2b4a] hover:bg-[#3a3b5a] rounded-full transition-colors flex justify-center items-center"
+            >
+              <Check className="w-10 h-10 text-[#22c55e]" strokeWidth={3} />
+            </button>
+          </div>
         </main>
       </div>
     );
