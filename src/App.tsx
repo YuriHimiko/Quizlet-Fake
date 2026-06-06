@@ -16,10 +16,26 @@ import {
   Plus,
   Save,
   Shuffle,
-  Trash2
+  Trash2,
+  Cloud,
+  CloudUpload,
+  CloudDownload,
+  LogOut,
+  RefreshCw,
+  User,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as xlsx from 'xlsx';
+import { 
+  initAuth, 
+  googleSignIn, 
+  logout, 
+  findBackupFile, 
+  downloadBackupFile, 
+  createBackupFile, 
+  updateBackupFile 
+} from './driveService';
 
 interface Option {
   id: number;
@@ -133,10 +149,40 @@ export default function App() {
 
   const [previousView, setPreviousView] = useState<'quiz' | 'flashcard'>('quiz');
 
-  // Initialize question status
+  // Google Cloud integration state
+  const [user, setUser] = useState<any>(null); // Firebase User
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Initialize Auth state
   useEffect(() => {
-    setQuestionStatus(new Array(quizQuestions.length).fill('unanswered'));
-  }, [quizQuestions]);
+    const unsubscribe = initAuth(
+      (currentUser, token) => {
+        setUser(currentUser);
+        setAccessToken(token);
+      },
+      () => {
+        setUser(null);
+        setAccessToken(null);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // Sync status auto-dismiss
+  useEffect(() => {
+    if (syncStatus) {
+      const timer = setTimeout(() => {
+        setSyncStatus(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [syncStatus]);
+
+  // Initialize question status is now handled manually when starting/restarting/etc is triggered to keep active progress intact.
 
   // Save score when finishing quiz
   useEffect(() => {
@@ -362,6 +408,7 @@ export default function App() {
         setCurrentSetId(newSet.id);
       }
       setQuizQuestions(newQuestions);
+      setQuestionStatus(new Array(newQuestions.length).fill('unanswered'));
       setCurrentIdx(0);
       setView('quiz');
     } else {
@@ -452,7 +499,9 @@ export default function App() {
   const handleRestart = () => {
     const currentSet = studySets.find(s => s.id === currentSetId);
     if (currentSet) {
-      setQuizQuestions(currentSet.questions);
+      const shuffled = [...currentSet.questions].sort(() => Math.random() - 0.5);
+      setQuizQuestions(shuffled);
+      setQuestionStatus(new Array(shuffled.length).fill('unanswered'));
     }
     setCurrentIdx(0);
     setSelectedId(null);
@@ -464,7 +513,9 @@ export default function App() {
   };
 
   const handleReviewWrong = () => {
-    setQuizQuestions(wrongQuestions);
+    const shuffled = [...wrongQuestions].sort(() => Math.random() - 0.5);
+    setQuizQuestions(shuffled);
+    setQuestionStatus(new Array(shuffled.length).fill('unanswered'));
     setCurrentIdx(0);
     setSelectedId(null);
     setIsCorrect(null);
@@ -475,12 +526,142 @@ export default function App() {
   };
 
   const handleShuffleQuiz = () => {
-    const shuffled = [...quizQuestions].sort(() => Math.random() - 0.5);
-    setQuizQuestions(shuffled);
-    setCurrentIdx(0);
-    setSelectedId(null);
-    setIsCorrect(null);
-    setShowFeedback(false);
+    if (quizQuestions.length <= 1) return;
+
+    if (currentIdx === 0) {
+      const currentQ = quizQuestions[0];
+      const rest = quizQuestions.slice(1);
+      const shuffledRest = [...rest].sort(() => Math.random() - 0.5);
+      const shuffled = [currentQ, ...shuffledRest];
+      
+      setQuizQuestions(shuffled);
+    } else {
+      const finished = quizQuestions.slice(0, currentIdx + 1);
+      const remaining = quizQuestions.slice(currentIdx + 1);
+      
+      const shuffledRemaining = [...remaining].sort(() => Math.random() - 0.5);
+      const shuffled = [...finished, ...shuffledRemaining];
+      
+      setQuizQuestions(shuffled);
+    }
+  };
+
+  const handleSignIn = async () => {
+    setIsCloudSyncing(true);
+    setSyncStatus({ type: 'info', message: 'Đang kết nối tài khoản Google...' });
+    setAuthError(null);
+    try {
+       const authResult = await googleSignIn();
+       if (authResult) {
+         setUser(authResult.user);
+         setAccessToken(authResult.accessToken);
+         setSyncStatus({ type: 'success', message: `Đăng nhập Google thành công! Xin chào, ${authResult.user.displayName || 'bạn'}!` });
+       }
+    } catch (error: any) {
+       console.error('Sign in error details:', error);
+       let errorMessage = 'Đăng nhập Google thất bại!';
+       
+       if (error && error.code) {
+         if (error.code === 'auth/popup-closed-by-user') {
+           errorMessage = 'Bạn đã đóng cửa sổ đăng nhập trước khi hoàn tất. Vui lòng bấm "Liên kết Google Drive" để thử lại và giữ cửa sổ mở.';
+         } else if (error.code === 'auth/popup-blocked') {
+           errorMessage = 'Trình duyệt của bạn đã chặn cửa sổ đăng nhập (Popup Blocker). Vui lòng cho phép hiện popup, hoặc click vào nút "Mở trong cửa sổ mới" ở góc trên của bản xem thử để tránh bị chặn.';
+         } else if (error.code === 'auth/cancelled-popup-request') {
+           errorMessage = 'Yêu cầu mở cửa sổ đăng nhập đã bị hủy.';
+         } else if (error.code === 'auth/network-request-failed') {
+           errorMessage = 'Lỗi kết nối mạng học tập. Vui lòng kiểm tra lại đường truyền mạng.';
+         } else if (error.code === 'auth/operation-not-allowed') {
+           errorMessage = 'Tính năng đăng nhập Google chưa được kích hoạt trên Firebase Console.';
+         } else {
+           errorMessage = `Lỗi hệ thống (${error.code}): Hãy bấm nút "Mở trong tab mới" ở góc trên của thanh công cụ AI Studio rồi thử kết nối lại.`;
+         }
+       } else if (error && error.message) {
+         errorMessage = `Lỗi: ${error.message}`;
+       }
+       
+       setSyncStatus({ type: 'error', message: errorMessage });
+       setAuthError(errorMessage);
+    } finally {
+       setIsCloudSyncing(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await logout();
+      setUser(null);
+      setAccessToken(null);
+      setShowProfileMenu(false);
+      setSyncStatus({ type: 'success', message: 'Đã đăng xuất tài khoản.' });
+    } catch (error: any) {
+      console.error(error);
+    }
+  };
+
+  const handleSaveToCloud = async () => {
+    if (!accessToken) {
+      setSyncStatus({ type: 'error', message: 'Vui lòng đăng nhập Google trước!' });
+      return;
+    }
+    setIsCloudSyncing(true);
+    setSyncStatus({ type: 'info', message: 'Đang sao lưu học phần lên Google Drive...' });
+    try {
+      const fileId = await findBackupFile(accessToken);
+      if (fileId) {
+        const success = await updateBackupFile(accessToken, fileId, studySets);
+        if (success) {
+          setSyncStatus({ type: 'success', message: 'Đã sao lưu thành công lên Google Drive!' });
+        } else {
+          setSyncStatus({ type: 'error', message: 'Sao lưu thất bại. Vui lòng thử lại!' });
+        }
+      } else {
+        const newFileId = await createBackupFile(accessToken, studySets);
+        if (newFileId) {
+          setSyncStatus({ type: 'success', message: 'Đã tạo bản sao lưu mới trên Google Drive!' });
+        } else {
+          setSyncStatus({ type: 'error', message: 'Không thể tạo tệp sao lưu trên Google Drive!' });
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setSyncStatus({ type: 'error', message: 'Lỗi đồng bộ dữ liệu!' });
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
+
+  const handleLoadFromCloud = async () => {
+    if (!accessToken) {
+      setSyncStatus({ type: 'error', message: 'Vui lòng đăng nhập Google trước!' });
+      return;
+    }
+    const confirmRestore = window.confirm(
+      'Hành động này sẽ tải toàn bộ học phần từ Google Drive về và THAY THẾ hoàn toàn học phần hiện tại trên thiết bị này. Bạn có muốn tiếp tục?'
+    );
+    if (!confirmRestore) return;
+
+    setIsCloudSyncing(true);
+    setSyncStatus({ type: 'info', message: 'Đang tải học phần từ Google Drive...' });
+    try {
+      const fileId = await findBackupFile(accessToken);
+      if (fileId) {
+        const cloudData = await downloadBackupFile(accessToken, fileId);
+        if (cloudData && Array.isArray(cloudData)) {
+          setStudySets(cloudData);
+          localStorage.setItem('english_quiz_sets', JSON.stringify(cloudData));
+          setSyncStatus({ type: 'success', message: `Nhập thành công ${cloudData.length} học phần từ Google Drive!` });
+        } else {
+          setSyncStatus({ type: 'error', message: 'Tệp sao lưu không hợp lệ hoặc trống!' });
+        }
+      } else {
+        setSyncStatus({ type: 'error', message: 'Không tìm thấy bản sao lưu nào trên Google Drive!' });
+      }
+    } catch (err) {
+      console.error(err);
+      setSyncStatus({ type: 'error', message: 'Lỗi tải dữ liệu sao lưu!' });
+    } finally {
+      setIsCloudSyncing(false);
+    }
   };
 
   const currentQuestion = quizQuestions[currentIdx] || INITIAL_QUESTIONS[0];
@@ -488,6 +669,25 @@ export default function App() {
   if (view === 'dashboard') {
     return (
       <div className="min-h-screen bg-[#0a0b1e] text-white flex flex-col font-sans p-6">
+        {syncStatus && (
+          <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-2xl border transition-all duration-300 max-w-sm flex items-center gap-3 ${
+            syncStatus.type === 'success' ? 'bg-[#152e24] border-emerald-500/50 text-emerald-300' :
+            syncStatus.type === 'error' ? 'bg-[#3b1c1c] border-red-500/50 text-red-300' :
+            'bg-[#1c1e3d] border-indigo-500/50 text-indigo-300'
+          }`}>
+            {isCloudSyncing ? (
+              <Loader2 className="w-5 h-5 animate-spin shrink-0" />
+            ) : syncStatus.type === 'success' ? (
+              <Check className="w-5 h-5 shrink-0" />
+            ) : syncStatus.type === 'error' ? (
+              <X className="w-5 h-5 shrink-0" />
+            ) : (
+              <Cloud className="w-5 h-5 shrink-0" />
+            )}
+            <p className="text-sm font-medium">{syncStatus.message}</p>
+          </div>
+        )}
+
         <header className="flex items-center justify-between py-6 max-w-5xl mx-auto w-full border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full border-2 border-indigo-500 flex items-center justify-center">
@@ -495,20 +695,174 @@ export default function App() {
             </div>
             <h1 className="text-2xl font-bold">Thư viện của bạn</h1>
           </div>
-          <button 
-            onClick={() => {
-              setCurrentSetId(null);
-              setEditTitle('Học phần mới');
-              setEditTerms([{ id: Date.now(), term: '', definition: '' }]);
-              setView('editor');
-            }}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20"
-          >
-            <Plus className="w-5 h-5" /> Tạo học phần
-          </button>
+
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => {
+                setCurrentSetId(null);
+                setEditTitle('Học phần mới');
+                setEditTerms([{ id: Date.now(), term: '', definition: '' }]);
+                setView('editor');
+              }}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20 text-sm cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> Tạo học phần
+            </button>
+
+            {user ? (
+              <div className="relative">
+                <button 
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  className="bg-[#15162c] hover:bg-[#1a1c38] border border-white/10 px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt={user.displayName} referrerPolicy="no-referrer" className="w-5 h-5 rounded-full" />
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-[10px] font-bold text-white uppercase">
+                      {user.displayName ? user.displayName.charAt(0) : 'U'}
+                    </div>
+                  )}
+                  <span className="text-sm font-medium hidden sm:inline max-w-[120px] truncate">
+                    {user.displayName || user.email || 'Cloud User'}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-white/50 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showProfileMenu && (
+                  <div className="absolute right-0 mt-2 w-56 bg-[#15162c] border border-white/10 rounded-xl shadow-2xl py-2 z-50">
+                    <div className="px-4 py-2 border-b border-white/5">
+                      <p className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Tài khoản</p>
+                      <p className="text-sm font-semibold truncate text-white">{user.displayName || 'Người dùng'}</p>
+                      <p className="text-xs text-white/50 truncate font-mono">{user.email}</p>
+                    </div>
+                    
+                    <button 
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        handleSaveToCloud();
+                      }}
+                      disabled={isCloudSyncing}
+                      className="w-full text-left px-4 py-2.5 hover:bg-[#1f203f] flex items-center gap-2 text-sm text-indigo-300 hover:text-indigo-200 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      <CloudUpload className="w-4 h-4 shrink-0" />
+                      <span>Sao lưu lên Cloud</span>
+                    </button>
+
+                    <button 
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        handleLoadFromCloud();
+                      }}
+                      disabled={isCloudSyncing}
+                      className="w-full text-left px-4 py-2.5 hover:bg-[#1f203f] flex items-center gap-2 text-sm text-emerald-300 hover:text-emerald-200 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      <CloudDownload className="w-4 h-4 shrink-0" />
+                      <span>Khôi phục từ Cloud</span>
+                    </button>
+
+                    <div className="border-t border-white/5 my-1"></div>
+
+                    <button 
+                      onClick={handleSignOut}
+                      className="w-full text-left px-4 py-2.5 hover:bg-red-500/10 text-red-400 hover:text-red-300 flex items-center gap-2 text-sm transition-colors cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4 shrink-0" />
+                      <span>Đăng xuất</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button 
+                onClick={handleSignIn}
+                disabled={isCloudSyncing}
+                className="bg-[#1c1e3d] hover:bg-indigo-950/50 text-indigo-300 hover:text-indigo-250 border border-indigo-500/30 px-5 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
+              >
+                <Cloud className="w-4 h-4" /> {isCloudSyncing ? 'Đang kết nối...' : 'Lưu Cloud (OAuth)'}
+              </button>
+            )}
+          </div>
         </header>
 
         <main className="flex-1 max-w-5xl mx-auto w-full py-12">
+          {/* Cloud Info Banner */}
+          {user ? (
+            <div className="mb-8 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex flex-col md:flex-row items-center md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                  <Cloud className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-emerald-400">Đã kết nối dữ liệu Google Drive</p>
+                  <p className="text-xs text-white/50">Học phần của bạn có thể được sao lưu lên Cloud hoặc khôi phục về thiết bị bất cứ lúc nào, giúp an tâm học tập.</p>
+                </div>
+              </div>
+              <div className="flex gap-2 w-full md:w-auto shrink-0 justify-end">
+                <button 
+                  onClick={handleSaveToCloud}
+                  disabled={isCloudSyncing}
+                  className="bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 text-emerald-300 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  <CloudUpload className="w-3.5 h-3.5" /> Sao lưu ngay
+                </button>
+                <button 
+                  onClick={handleLoadFromCloud}
+                  disabled={isCloudSyncing}
+                  className="bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-500/30 text-indigo-300 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  <CloudDownload className="w-3.5 h-3.5" /> Khôi phục về máy
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-8 flex flex-col gap-4">
+              <div className="p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                    <Cloud className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-indigo-400">Trải nghiệm đồng bộ Cloud bảo mật</p>
+                    <p className="text-xs text-white/50">Đăng nhập bằng tài khoản Google để tự động sao lưu tất cả các bộ học phần lên tài khoản Drive cá nhân an toàn.</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={handleSignIn}
+                  disabled={isCloudSyncing}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-indigo-500/15 cursor-pointer w-full md:w-auto text-center justify-center shrink-0 animate-bounce"
+                >
+                  <Cloud className="w-3.5 h-3.5" /> {isCloudSyncing ? 'Đang kết nối...' : 'Liên kết Google Drive'}
+                </button>
+              </div>
+
+              {authError && (
+                <div className="p-5 bg-red-500/5 border border-red-500/20 rounded-2xl flex flex-col gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500 shrink-0 mt-0.5">
+                      <X className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-red-400">Yêu cầu đăng nhập bị hủy hoặc bị chặn</p>
+                      <p className="text-xs text-red-200/80 mt-1 leading-relaxed">
+                        {authError}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="pl-11 pr-2 py-3 bg-[#110e1a]/80 rounded-xl text-xs text-white/60 space-y-2 leading-relaxed border border-white/5">
+                    <p className="font-semibold text-white/80">💡 Tại sao lỗi này xảy ra?</p>
+                    <p>Ứng dụng hiện đang được đặt bên trong <strong>Khung nội dung (iFrame)</strong> của AI Studio. Một số trình duyệt (như Safari, Chrome, Edge) có chính sách bảo mật chặn các cửa sổ popups tự động hoặc chặn ghi nhận cookies bên thứ ba trong bối cảnh iframe.</p>
+                    
+                    <p className="font-semibold text-white/80 pt-1">🛠️ Cách khắc phục cực kỳ đơn giản:</p>
+                    <ul className="list-decimal pl-4 space-y-1">
+                      <li>Bấm vào biểu tượng <strong>"Mở trong tab mới" (Open in a new window)</strong> ở góc trên bên phải khung xem thử của AI Studio. Biểu tượng này trông giống một ô vuông có mũi tên trỏ ra ngoài.</li>
+                      <li>Sau khi ứng dụng mở ra trang riêng biệt, bạn bấm nút <strong>"Liên kết Google Drive"</strong> là có thể đăng nhập bình thường mà không bao giờ bị chặn nữa!</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {studySets.length === 0 ? (
             <div className="text-center py-20 opacity-50">
               <p>Bạn chưa có học phần nào. Hãy tạo một học phần mới để bắt đầu!</p>
@@ -525,7 +879,9 @@ export default function App() {
                         <button 
                           onClick={() => {
                             setCurrentSetId(set.id);
-                            setQuizQuestions(set.questions);
+                            const shuffled = [...set.questions].sort(() => Math.random() - 0.5);
+                            setQuizQuestions(shuffled);
+                            setQuestionStatus(new Array(shuffled.length).fill('unanswered'));
                             setCurrentIdx(0);
                             setSelectedId(null);
                             setIsCorrect(null);
@@ -541,7 +897,9 @@ export default function App() {
                         <button 
                           onClick={() => {
                             setCurrentSetId(set.id);
-                            setQuizQuestions(set.questions);
+                            const shuffled = [...set.questions].sort(() => Math.random() - 0.5);
+                            setQuizQuestions(shuffled);
+                            setQuestionStatus(new Array(shuffled.length).fill('unanswered'));
                             setCurrentIdx(0);
                             setIsFlipped(false);
                             setPreviousView('flashcard');
@@ -557,7 +915,9 @@ export default function App() {
                           onClick={() => {
                             setCurrentSetId(set.id);
                             const reviewQuestions = set.questions.filter(q => set.needsReview?.includes(q.id));
-                            setQuizQuestions(reviewQuestions);
+                            const shuffled = [...reviewQuestions].sort(() => Math.random() - 0.5);
+                            setQuizQuestions(shuffled);
+                            setQuestionStatus(new Array(shuffled.length).fill('unanswered'));
                             setCurrentIdx(0);
                             setSelectedId(null);
                             setIsCorrect(null);
