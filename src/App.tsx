@@ -1392,6 +1392,17 @@ export default function App() {
 
         <div className="flex items-center gap-4">
           <button 
+            onClick={() => {
+              if (window.confirm('Bạn có chắc chắn muốn làm lại từ đầu không? Toàn bộ tiến trình làm bài hiện tại của học phần này sẽ được thiếp lập lại.')) {
+                handleRestart();
+              }
+            }}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors text-indigo-400 hover:text-indigo-300"
+            title="Làm lại từ đầu"
+          >
+            <RefreshCw className="w-5 h-5" />
+          </button>
+          <button 
             onClick={handleShuffleQuiz}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
             title="Xáo trộn câu hỏi"
