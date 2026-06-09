@@ -338,16 +338,13 @@ export default function App() {
   };
 
   const handleSaveEditor = () => {
-    // Collect all unique words available for distractors
-    const allAvailableWords = [
-      ...editTerms.map(t => {
-        const match = t.term.match(/(.*)\((.*)\)/);
-        const text = (match ? match[1] : t.term).trim();
-        const pos = (match ? match[2] : 'v').trim();
-        return { text, pos };
-      }),
-      ...INITIAL_QUESTIONS.flatMap(q => q.options.map(o => ({ text: o.text.trim(), pos: o.partOfSpeech.trim() })))
-    ].filter(w => w.text !== "");
+    // Collect all unique words available for distractors - ONLY from current study set terms!
+    const allAvailableWords = editTerms.map(t => {
+      const match = t.term.match(/(.*)\((.*)\)/);
+      const text = (match ? match[1] : t.term).trim();
+      const pos = (match ? match[2] : 'v').trim();
+      return { text, pos };
+    }).filter(w => w.text !== "");
 
     const newQuestions: Question[] = editTerms
       .filter(t => t.term.trim() && t.definition.trim())
