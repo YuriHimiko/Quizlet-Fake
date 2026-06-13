@@ -23,7 +23,8 @@ import {
   LogOut,
   RefreshCw,
   User,
-  Loader2
+  Loader2,
+  ArrowLeftRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as xlsx from 'xlsx';
@@ -425,6 +426,14 @@ export default function App() {
     setEditTerms(editTerms.map(t => t.id === id ? { ...t, [field]: value } : t));
   };
 
+  const handleSwapColumns = () => {
+    setEditTerms(editTerms.map(t => ({
+      ...t,
+      term: t.definition,
+      definition: t.term
+    })));
+  };
+
   const speak = (text: string) => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
@@ -451,11 +460,42 @@ export default function App() {
         // Convert to array of arrays
         const data = xlsx.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
         
-        newTerms = data
+        // Check if there is a header row to skip
+        let startIndex = 0;
+        if (data.length > 0) {
+          const firstRow = data[0];
+          if (firstRow && firstRow.length >= 2) {
+            const col1 = String(firstRow[0] || '').toLowerCase().trim();
+            const col2 = String(firstRow[1] || '').toLowerCase().trim();
+            if (
+              col1 === 'term' || col1 === 'từ vựng' || col1 === 'word' || col1 === 'english' ||
+              col2 === 'definition' || col2 === 'nghĩa' || col2 === 'meaning' || col2 === 'vietnamese'
+            ) {
+              startIndex = 1;
+            }
+          }
+        }
+
+        const rowsToProcess = startIndex > 0 ? data.slice(startIndex) : data;
+
+        newTerms = rowsToProcess
           .filter(row => row && row.length >= 2) // Ensure at least 2 columns exist
           .map(row => {
-            const term = String(row[0] || '').trim();
+            const rawTerm = String(row[0] || '').trim();
             const definition = String(row[1] || '').trim();
+            let term = rawTerm;
+            
+            // Check if there's a 3rd column for part of speech (từ loại)
+            if (row.length >= 3 && row[2] !== undefined && row[2] !== null) {
+              const pos = String(row[2]).trim();
+              if (pos) {
+                // If term doesn't already contain part of speech parentheses, format it
+                if (!term.includes('(') && !term.includes(')')) {
+                  term = `${term} (${pos})`;
+                }
+              }
+            }
+
             if (term && definition) {
               return { id: Date.now() + Math.random(), term, definition };
             }
@@ -1280,31 +1320,43 @@ export default function App() {
             </div>
 
             {/* Toolbar */}
-            <div className="flex items-center justify-between py-4">
-              <div className="flex gap-3">
-                <label 
-                  htmlFor="file-import"
-                  className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg text-sm font-bold border border-white/10 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Nhập
-                </label>
-                <button className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg text-sm font-bold border border-white/10">
-                  <Plus className="w-4 h-4" /> Thêm sơ đồ <Settings className="w-3 h-3 text-brand-accent" />
-                </button>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-white/40 uppercase">Gợi ý</span>
-                  <div className="w-10 h-5 bg-indigo-600 rounded-full relative cursor-pointer">
-                    <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" />
+            <div className="flex flex-col gap-3 py-4 border-b border-white/5 bg-white/[0.02] p-4 rounded-xl border border-white/5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex flex-wrap gap-3">
+                  <label 
+                    htmlFor="file-import"
+                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold cursor-pointer transition-all shadow-md shadow-indigo-600/15"
+                  >
+                    <Plus className="w-4 h-4" /> Nhập từ Excel/CSV/TXT
+                  </label>
+                  <button className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg text-sm font-bold border border-white/10">
+                    <Plus className="w-4 h-4" /> Thêm sơ đồ <Settings className="w-3 h-3 text-brand-accent" />
+                  </button>
+                  <button 
+                    onClick={handleSwapColumns}
+                    className="flex items-center gap-2 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 px-4 py-2 rounded-lg text-sm font-bold cursor-pointer transition-all"
+                    title="Đảo vị trí Thuật ngữ và Định nghĩa của toàn bộ các thẻ hiện tại"
+                  >
+                    <ArrowLeftRight className="w-4 h-4 text-indigo-400" /> Đảo 2 cột
+                  </button>
+                </div>
+                <div className="flex items-center gap-4 self-end sm:self-auto">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-white/40 uppercase">Gợi ý</span>
+                    <div className="w-10 h-5 bg-indigo-600 rounded-full relative cursor-pointer">
+                      <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10"><ChevronDown className="w-4 h-4 rotate-90" /></button>
+                    <button className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10"><Settings className="w-4 h-4" /></button>
+                    <button className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 text-red-400"><X className="w-4 h-4" /></button>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10"><ChevronDown className="w-4 h-4 rotate-90" /></button>
-                  <button className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10"><Settings className="w-4 h-4" /></button>
-                  <button className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 text-red-400"><X className="w-4 h-4" /></button>
-                </div>
               </div>
+              <p className="text-xs text-white/50 leading-relaxed bg-[#111224]/80 p-3 rounded-lg border border-white/5">
+                💡 <strong>Hướng dẫn Import nâng cao:</strong> Tải lên tệp Excel (.xlsx, .xls) gồm 2 hoặc 3 cột. Cột 1 là <strong>Từ vựng tiếng Anh</strong>, Cột 2 là <strong>Định nghĩa/Nghĩa tiếng Việt</strong>, Cột 3 (Tùy chọn) là <strong>Từ loại</strong> (Ví dụ: <em>n, v, adj, adv</em>) nhằm tự động gộp thành định dạng <strong>"Từ vựng (Từ loại)"</strong> để tạo các đáp án gây nhiễu cùng loại chuẩn xác hơn trong phần trắc nghiệm!
+              </p>
             </div>
 
             {/* Term List */}
