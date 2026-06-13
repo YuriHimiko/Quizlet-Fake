@@ -487,11 +487,17 @@ export default function App() {
             
             // Check if there's a 3rd column for part of speech (từ loại)
             if (row.length >= 3 && row[2] !== undefined && row[2] !== null) {
-              const pos = String(row[2]).trim();
+              let pos = String(row[2]).trim();
               if (pos) {
-                // If term doesn't already contain part of speech parentheses, format it
-                if (!term.includes('(') && !term.includes(')')) {
-                  term = `${term} (${pos})`;
+                // Strip outer parentheses from the part of speech if they exist (e.g. "(n)" or "((n))")
+                while (pos.startsWith('(') && pos.endsWith(')')) {
+                  pos = pos.slice(1, -1).trim();
+                }
+                if (pos) {
+                  // If term doesn't already contain part of speech parentheses, format it
+                  if (!term.includes('(') && !term.includes(')')) {
+                    term = `${term} (${pos})`;
+                  }
                 }
               }
             }
