@@ -142,13 +142,16 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'quiz' | 'flashcard' | 'editor' | 'summary'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'quiz' | 'flashcard' | 'written' | 'editor' | 'summary'>('dashboard');
+  const [writtenAnswer, setWrittenAnswer] = useState('');
+  const [showWrittenFeedback, setShowWrittenFeedback] = useState(false);
+  const [isWrittenCorrect, setIsWrittenCorrect] = useState<boolean | null>(null);
   const [wrongQuestions, setWrongQuestions] = useState<Question[]>([]);
   const [questionStatus, setQuestionStatus] = useState<('unanswered' | 'correct' | 'incorrect')[]>([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
 
-  const [previousView, setPreviousView] = useState<'quiz' | 'flashcard'>('quiz');
+  const [previousView, setPreviousView] = useState<'quiz' | 'flashcard' | 'written'>('quiz');
 
   // Google Cloud integration state
   const [user, setUser] = useState<any>(null); // Firebase User
@@ -284,14 +287,18 @@ export default function App() {
       setWrongQuestions(prev => prev.filter(q => q.id !== currentQ.id));
     }
 
+    const wasFlipped = isFlipped;
     setIsFlipped(false);
+
+    const delay = wasFlipped ? 300 : 50;
+
     setTimeout(() => {
       if (currentIdx < quizQuestions.length - 1) {
         setCurrentIdx(prev => prev + 1);
       } else {
         setView('summary');
       }
-    }, 150);
+    }, delay);
   };
 
   const handleSelect = (id: number) => {
@@ -332,6 +339,61 @@ export default function App() {
       setShowFeedback(false);
     } else {
       setView('summary');
+    }
+  };
+
+  const handleNextWritten = () => {
+    if (currentIdx < quizQuestions.length - 1) {
+      setCurrentIdx(prev => prev + 1);
+      setWrittenAnswer('');
+      setShowWrittenFeedback(false);
+      setIsWrittenCorrect(null);
+    } else {
+      setView('summary');
+    }
+  };
+
+  const handleSubmitWritten = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (showWrittenFeedback) {
+      handleNextWritten();
+      return;
+    }
+
+    if (!writtenAnswer.trim()) return;
+
+    const currentQ = quizQuestions[currentIdx];
+    if (!currentQ) return;
+
+    const correctOption = currentQ.options.find(o => o.id === currentQ.correctId);
+    if (!correctOption) return;
+
+    const typedNormalized = writtenAnswer.trim().toLowerCase().replace(/\s+/g, ' ');
+    const correctNormalized = correctOption.text.trim().toLowerCase().replace(/\s+/g, ' ');
+
+    const correct = typedNormalized === correctNormalized;
+
+    setIsWrittenCorrect(correct);
+    setShowWrittenFeedback(true);
+
+    setQuestionStatus(prev => {
+      const newStatus = [...prev];
+      if (newStatus[currentIdx] === 'unanswered') {
+        newStatus[currentIdx] = correct ? 'correct' : 'incorrect';
+      }
+      return newStatus;
+    });
+
+    if (!correct) {
+      setWrongQuestions(prev => {
+        if (prev.find(q => q.id === currentQ.id)) return prev;
+        return [...prev, currentQ];
+      });
+    } else {
+      speak(correctOption.text);
+      setTimeout(() => {
+        handleNextWritten();
+      }, 1600);
     }
   };
 
@@ -567,6 +629,9 @@ export default function App() {
     setSelectedId(null);
     setIsCorrect(null);
     setShowFeedback(false);
+    setWrittenAnswer('');
+    setShowWrittenFeedback(false);
+    setIsWrittenCorrect(null);
     setWrongQuestions([]);
     setIsFlipped(false);
     setView(previousView);
@@ -580,6 +645,9 @@ export default function App() {
     setSelectedId(null);
     setIsCorrect(null);
     setShowFeedback(false);
+    setWrittenAnswer('');
+    setShowWrittenFeedback(false);
+    setIsWrittenCorrect(null);
     setWrongQuestions([]);
     setIsFlipped(false);
     setView(previousView);
@@ -935,7 +1003,7 @@ export default function App() {
                     <h3 className="text-xl font-bold mb-2 group-hover:text-indigo-400 transition-colors">{set.title}</h3>
                     <p className="text-white/40 text-sm mb-4">{set.questions.length} thuật ngữ</p>
                     <div className="flex flex-col gap-2">
-                      <div className="flex gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <button 
                           onClick={() => {
                             setCurrentSetId(set.id);
@@ -950,7 +1018,7 @@ export default function App() {
                             setPreviousView('quiz');
                             setView('quiz');
                           }}
-                          className="flex-1 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white text-sm font-bold py-2 rounded-lg transition-colors border border-indigo-500/30"
+                          className="bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white text-xs font-bold py-2 px-0.5 rounded-lg transition-colors border border-indigo-500/30 text-center"
                         >
                           Trắc nghiệm
                         </button>
@@ -965,9 +1033,27 @@ export default function App() {
                             setPreviousView('flashcard');
                             setView('flashcard');
                           }}
-                          className="flex-1 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-sm font-bold py-2 rounded-lg transition-colors border border-emerald-500/30"
+                          className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-xs font-bold py-2 px-0.5 rounded-lg transition-colors border border-emerald-500/30 text-center"
                         >
                           Thẻ ghi nhớ
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setCurrentSetId(set.id);
+                            const shuffled = [...set.questions].sort(() => Math.random() - 0.5);
+                            setQuizQuestions(shuffled);
+                            setQuestionStatus(new Array(shuffled.length).fill('unanswered'));
+                            setCurrentIdx(0);
+                            setWrittenAnswer('');
+                            setShowWrittenFeedback(false);
+                            setIsWrittenCorrect(null);
+                            setWrongQuestions([]);
+                            setPreviousView('written');
+                            setView('written');
+                          }}
+                          className="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white text-xs font-bold py-2 px-0.5 rounded-lg transition-colors border border-cyan-500/30 text-center"
+                        >
+                          Tự luận
                         </button>
                       </div>
                       {set.needsReview && set.needsReview.length > 0 && (
@@ -1127,8 +1213,9 @@ export default function App() {
             }}
           >
             <motion.div 
-              className="w-full h-full relative [transform-style:preserve-3d] transition-transform duration-500"
+              className="w-full h-full relative [transform-style:preserve-3d]"
               animate={{ rotateX: isFlipped ? 180 : 0 }}
+              transition={{ type: 'tween', duration: 0.3 }}
             >
               {/* Front (Definition) */}
               <div className="absolute inset-0 [backface-visibility:hidden] bg-[#15162c] border-2 border-white/10 rounded-3xl flex flex-col items-center justify-center p-8 shadow-2xl">
@@ -1170,6 +1257,178 @@ export default function App() {
               <Check className="w-10 h-10 text-[#22c55e]" strokeWidth={3} />
             </button>
           </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (view === 'written') {
+    const q = quizQuestions[currentIdx] || INITIAL_QUESTIONS[0];
+    const correctOption = q?.options?.find(o => o.id === q.correctId);
+    const word = correctOption ? correctOption.text : '';
+    const pos = correctOption ? correctOption.partOfSpeech : '';
+    const definition = q?.definition || '';
+
+    return (
+      <div className="min-h-screen bg-[#0a0b1e] text-white flex flex-col font-sans">
+        <header className="flex items-center justify-between p-6 border-b border-white/10">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setView('dashboard')}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <h1 className="text-xl font-bold">Chế độ tự luận</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-white/40 font-bold">{currentIdx + 1} / {quizQuestions.length}</span>
+            <button 
+              onClick={handleShuffleQuiz}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors ml-2"
+              title="Xáo trộn câu hỏi"
+            >
+              <Shuffle className="w-5 h-5 opacity-70" />
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-1 flex flex-col items-center justify-center p-6 max-w-2xl mx-auto w-full">
+          {/* Progress bar */}
+          <div className="w-full max-w-2xl mb-8 flex gap-1 h-2">
+            {quizQuestions.map((_, idx) => {
+              const status = questionStatus[idx];
+              let colorClasses = 'bg-white/5';
+              if (status === 'correct') {
+                colorClasses = 'bg-emerald-500';
+              } else if (status === 'incorrect') {
+                colorClasses = 'bg-red-500';
+              } else if (idx === currentIdx) {
+                colorClasses = 'bg-indigo-500';
+              }
+              return (
+                <div 
+                  key={idx} 
+                  className={`flex-1 rounded-full transition-colors ${colorClasses}`}
+                />
+              );
+            })}
+          </div>
+
+          {/* Flashcard containing prompt */}
+          <div className="w-full bg-[#15162c] border border-white/10 rounded-3xl flex flex-col p-8 md:p-12 shadow-2xl relative">
+            <span className="text-white/40 text-xs font-bold uppercase tracking-widest mb-4">Định nghĩa / Nghĩa tiếng Việt</span>
+            <h2 className="text-2xl md:text-3xl font-bold mb-8 leading-relaxed text-indigo-100">{definition}</h2>
+
+            <form onSubmit={handleSubmitWritten} className="space-y-4">
+              <div className="relative">
+                <input 
+                  type="text" 
+                  value={writtenAnswer}
+                  onChange={(e) => setWrittenAnswer(e.target.value)}
+                  placeholder="Nhập từ vựng tiếng Anh tương ứng..."
+                  className={`w-full bg-[#0a0b1e] border-2 rounded-2xl px-6 py-4 text-xl font-bold text-center focus:outline-none focus:ring-4 focus:ring-indigo-500/20 transition-all ${
+                    showWrittenFeedback 
+                      ? isWrittenCorrect 
+                        ? 'border-emerald-500 text-emerald-400' 
+                        : 'border-red-500 text-red-400'
+                      : 'border-white/15 focus:border-indigo-500'
+                  }`}
+                  disabled={showWrittenFeedback}
+                  autoFocus
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck="false"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-center pt-2">
+                {!showWrittenFeedback ? (
+                  <>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setIsWrittenCorrect(false);
+                        setShowWrittenFeedback(true);
+                        setQuestionStatus(prev => {
+                          const newStatus = [...prev];
+                          newStatus[currentIdx] = 'incorrect';
+                          return newStatus;
+                        });
+                        setWrongQuestions(prev => {
+                          if (prev.find(item => item.id === q.id)) return prev;
+                          return [...prev, q];
+                        });
+                      }}
+                      className="px-6 py-3.5 bg-white/5 hover:bg-white/10 rounded-xl font-semibold text-sm transition-all border border-white/10 text-white/70"
+                    >
+                      Bỏ qua
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={!writtenAnswer.trim()}
+                      className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:bg-indigo-600/50 rounded-xl font-bold text-sm transition-all text-white shadow-lg shadow-indigo-600/15 cursor-pointer"
+                    >
+                      Kiểm tra
+                    </button>
+                  </>
+                ) : (
+                  <button 
+                    type="button"
+                    onClick={handleNextWritten}
+                    className="px-10 py-3.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-sm transition-all text-white shadow-lg shadow-indigo-500/25 cursor-pointer"
+                  >
+                    {currentIdx < quizQuestions.length - 1 ? 'Tiếp theo' : 'Xem kết quả'}
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+
+          {/* Feedback area */}
+          <AnimatePresence>
+            {showWrittenFeedback && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 15 }}
+                className={`w-full mt-6 p-5 rounded-2xl border ${
+                  isWrittenCorrect 
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                    : 'bg-red-500/10 border-red-500/20 text-red-400'
+                }`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="pt-0.5">
+                    {isWrittenCorrect ? (
+                      <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                    ) : (
+                      <XCircle className="w-6 h-6 text-red-400" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-lg mb-1">
+                      {isWrittenCorrect ? 'Hoàn toàn chính xác!' : 'Chưa đúng rồi'}
+                    </p>
+                    <p className="text-white/80 text-sm leading-relaxed">
+                      Đáp án đúng:{' '}
+                      <strong className="text-white text-base underline decoration-indigo-400 decoration-2 underline-offset-2">
+                        {word}
+                      </strong>{' '}
+                      {pos && <span className="text-white/40 text-xs">({pos})</span>}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => speak(word)}
+                    className="p-3 bg-white/5 hover:bg-white/10 rounded-full transition-colors shrink-0"
+                    title="Nghe phát âm"
+                  >
+                    <Volume2 className="w-5 h-5 text-indigo-300" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </main>
       </div>
     );
