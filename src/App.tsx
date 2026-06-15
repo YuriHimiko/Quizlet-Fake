@@ -394,9 +394,6 @@ export default function App() {
       });
     } else {
       speak(correctOption.text);
-      setTimeout(() => {
-        handleNextWritten();
-      }, 1600);
     }
   };
 
@@ -450,9 +447,6 @@ export default function App() {
       });
     } else {
       speak(correctOption.text);
-      setTimeout(() => {
-        handleNextListening();
-      }, 1600);
     }
   };
 
