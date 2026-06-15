@@ -255,6 +255,23 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view, quizQuestions, currentIdx, wrongQuestions]);
 
+  // Pronounce word when flashcard changes or view changes to flashcard
+  useEffect(() => {
+    if (view === 'flashcard' && quizQuestions[currentIdx]) {
+      const q = quizQuestions[currentIdx];
+      const correctOption = q.options.find(o => o.id === q.correctId);
+      if (correctOption && correctOption.text) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(correctOption.text);
+        utterance.lang = 'en-US';
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, [view, currentIdx, quizQuestions]);
+
   const handleMarkFlashcard = (known: boolean) => {
     const currentQ = quizQuestions[currentIdx];
     if (!currentQ) return;
