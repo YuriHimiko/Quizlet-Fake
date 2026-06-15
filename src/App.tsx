@@ -142,16 +142,19 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'quiz' | 'flashcard' | 'written' | 'editor' | 'summary'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'quiz' | 'flashcard' | 'written' | 'listening' | 'editor' | 'summary'>('dashboard');
   const [writtenAnswer, setWrittenAnswer] = useState('');
   const [showWrittenFeedback, setShowWrittenFeedback] = useState(false);
   const [isWrittenCorrect, setIsWrittenCorrect] = useState<boolean | null>(null);
+  const [listeningAnswer, setListeningAnswer] = useState('');
+  const [showListeningFeedback, setShowListeningFeedback] = useState(false);
+  const [isListeningCorrect, setIsListeningCorrect] = useState<boolean | null>(null);
   const [wrongQuestions, setWrongQuestions] = useState<Question[]>([]);
   const [questionStatus, setQuestionStatus] = useState<('unanswered' | 'correct' | 'incorrect')[]>([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
 
-  const [previousView, setPreviousView] = useState<'quiz' | 'flashcard' | 'written'>('quiz');
+  const [previousView, setPreviousView] = useState<'quiz' | 'flashcard' | 'written' | 'listening'>('quiz');
 
   // Google Cloud integration state
   const [user, setUser] = useState<any>(null); // Firebase User
@@ -258,9 +261,9 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view, quizQuestions, currentIdx, wrongQuestions]);
 
-  // Pronounce word when flashcard changes or view changes to flashcard
+  // Pronounce word when flashcard changes, listening changes or view changes to them
   useEffect(() => {
-    if (view === 'flashcard' && quizQuestions[currentIdx]) {
+    if ((view === 'flashcard' || view === 'listening') && quizQuestions[currentIdx]) {
       const q = quizQuestions[currentIdx];
       const correctOption = q.options.find(o => o.id === q.correctId);
       if (correctOption && correctOption.text) {
@@ -393,6 +396,62 @@ export default function App() {
       speak(correctOption.text);
       setTimeout(() => {
         handleNextWritten();
+      }, 1600);
+    }
+  };
+
+  const handleNextListening = () => {
+    if (currentIdx < quizQuestions.length - 1) {
+      setCurrentIdx(prev => prev + 1);
+      setListeningAnswer('');
+      setShowListeningFeedback(false);
+      setIsListeningCorrect(null);
+    } else {
+      setView('summary');
+    }
+  };
+
+  const handleSubmitListening = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (showListeningFeedback) {
+      handleNextListening();
+      return;
+    }
+
+    if (!listeningAnswer.trim()) return;
+
+    const currentQ = quizQuestions[currentIdx];
+    if (!currentQ) return;
+
+    const correctOption = currentQ.options.find(o => o.id === currentQ.correctId);
+    if (!correctOption) return;
+
+    const typedNormalized = listeningAnswer.trim().toLowerCase().replace(/\s+/g, ' ');
+    const correctFull = correctOption.text.toLowerCase().trim();
+    const correctBase = correctOption.text.replace(/\s*\(.*?\)\s*/g, '').toLowerCase().trim();
+
+    const correct = (typedNormalized === correctFull || typedNormalized === correctBase);
+
+    setIsListeningCorrect(correct);
+    setShowListeningFeedback(true);
+
+    setQuestionStatus(prev => {
+      const newStatus = [...prev];
+      if (newStatus[currentIdx] === 'unanswered') {
+        newStatus[currentIdx] = correct ? 'correct' : 'incorrect';
+      }
+      return newStatus;
+    });
+
+    if (!correct) {
+      setWrongQuestions(prev => {
+        if (prev.find(q => q.id === currentQ.id)) return prev;
+        return [...prev, currentQ];
+      });
+    } else {
+      speak(correctOption.text);
+      setTimeout(() => {
+        handleNextListening();
       }, 1600);
     }
   };
@@ -632,6 +691,9 @@ export default function App() {
     setWrittenAnswer('');
     setShowWrittenFeedback(false);
     setIsWrittenCorrect(null);
+    setListeningAnswer('');
+    setShowListeningFeedback(false);
+    setIsListeningCorrect(null);
     setWrongQuestions([]);
     setIsFlipped(false);
     setView(previousView);
@@ -648,6 +710,9 @@ export default function App() {
     setWrittenAnswer('');
     setShowWrittenFeedback(false);
     setIsWrittenCorrect(null);
+    setListeningAnswer('');
+    setShowListeningFeedback(false);
+    setIsListeningCorrect(null);
     setWrongQuestions([]);
     setIsFlipped(false);
     setView(previousView);
@@ -1003,7 +1068,7 @@ export default function App() {
                     <h3 className="text-xl font-bold mb-2 group-hover:text-indigo-400 transition-colors">{set.title}</h3>
                     <p className="text-white/40 text-sm mb-4">{set.questions.length} thuật ngữ</p>
                     <div className="flex flex-col gap-2">
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         <button 
                           onClick={() => {
                             setCurrentSetId(set.id);
@@ -1054,6 +1119,24 @@ export default function App() {
                           className="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white text-xs font-bold py-2 px-0.5 rounded-lg transition-colors border border-cyan-500/30 text-center"
                         >
                           Tự luận
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setCurrentSetId(set.id);
+                            const shuffled = [...set.questions].sort(() => Math.random() - 0.5);
+                            setQuizQuestions(shuffled);
+                            setQuestionStatus(new Array(shuffled.length).fill('unanswered'));
+                            setCurrentIdx(0);
+                            setListeningAnswer('');
+                            setShowListeningFeedback(false);
+                            setIsListeningCorrect(null);
+                            setWrongQuestions([]);
+                            setPreviousView('listening');
+                            setView('listening');
+                          }}
+                          className="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-xs font-bold py-2 px-0.5 rounded-lg transition-colors border border-rose-500/30 text-center animate-pulse-subtle"
+                        >
+                          Luyện nghe
                         </button>
                       </div>
                       {set.needsReview && set.needsReview.length > 0 && (
@@ -1424,6 +1507,191 @@ export default function App() {
                     title="Nghe phát âm"
                   >
                     <Volume2 className="w-5 h-5 text-indigo-300" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </main>
+      </div>
+    );
+  }
+
+  if (view === 'listening') {
+    const q = quizQuestions[currentIdx] || INITIAL_QUESTIONS[0];
+    const correctOption = q?.options?.find(o => o.id === q.correctId);
+    const word = correctOption ? correctOption.text : '';
+    const pos = correctOption ? correctOption.partOfSpeech : '';
+    const definition = q?.definition || '';
+
+    return (
+      <div className="min-h-screen bg-[#0a0b1e] text-white flex flex-col font-sans">
+        <header className="flex items-center justify-between p-6 border-b border-white/10">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setView('dashboard')}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <h1 className="text-xl font-bold">Chế độ luyện nghe</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-white/40 font-bold">{currentIdx + 1} / {quizQuestions.length}</span>
+            <button 
+              onClick={handleShuffleQuiz}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors ml-2"
+              title="Xáo trộn câu hỏi"
+            >
+              <Shuffle className="w-5 h-5 opacity-70" />
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-1 flex flex-col items-center justify-center p-6 max-w-2xl mx-auto w-full">
+          {/* Progress bar */}
+          <div className="w-full max-w-2xl mb-8 flex gap-1 h-2">
+            {quizQuestions.map((_, idx) => {
+              const status = questionStatus[idx];
+              let colorClasses = 'bg-white/5';
+              if (status === 'correct') {
+                colorClasses = 'bg-emerald-500';
+              } else if (status === 'incorrect') {
+                colorClasses = 'bg-red-500';
+              } else if (idx === currentIdx) {
+                colorClasses = 'bg-rose-500';
+              }
+              return (
+                <div 
+                  key={idx} 
+                  className={`flex-1 rounded-full transition-colors ${colorClasses}`}
+                />
+              );
+            })}
+          </div>
+
+          {/* Audio Practice Card */}
+          <div className="w-full bg-[#15162c] border border-white/10 rounded-3xl flex flex-col items-center p-8 md:p-12 shadow-2xl relative">
+            <span className="text-white/40 text-xs font-bold uppercase tracking-widest mb-6 block text-center">Bấm nút để nghe phát âm</span>
+            
+            {/* Animated Audio Pulsing Button */}
+            <button 
+              onClick={() => speak(word)}
+              type="button"
+              className="w-28 h-28 bg-rose-600/10 hover:bg-rose-600/20 active:scale-95 text-rose-400 hover:text-rose-300 rounded-full flex items-center justify-center transition-all border border-rose-500/25 shadow-lg shadow-rose-500/5 mb-8 relative group"
+            >
+              <span className="absolute inset-0 rounded-full bg-rose-600/5 group-hover:scale-110 transition-transform duration-300" />
+              <Volume2 className="w-12 h-12 text-rose-400 relative z-10" />
+            </button>
+
+            <form onSubmit={handleSubmitListening} className="space-y-4 w-full">
+              <div className="relative">
+                <input 
+                  type="text" 
+                  value={listeningAnswer}
+                  onChange={(e) => setListeningAnswer(e.target.value)}
+                  placeholder="Nghe và gõ lại từ vựng..."
+                  className={`w-full bg-[#0a0b1e] border-2 rounded-2xl px-6 py-4 text-xl font-bold text-center focus:outline-none focus:ring-4 focus:ring-rose-500/20 transition-all ${
+                    showListeningFeedback 
+                      ? isListeningCorrect 
+                        ? 'border-emerald-500 text-emerald-400' 
+                        : 'border-red-500 text-red-400'
+                      : 'border-white/15 focus:border-rose-500'
+                  }`}
+                  disabled={showListeningFeedback}
+                  autoFocus
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck="false"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-center pt-2">
+                {!showListeningFeedback ? (
+                  <>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setIsListeningCorrect(false);
+                        setShowListeningFeedback(true);
+                        setQuestionStatus(prev => {
+                          const newStatus = [...prev];
+                          newStatus[currentIdx] = 'incorrect';
+                          return newStatus;
+                        });
+                        setWrongQuestions(prev => {
+                          if (prev.find(item => item.id === q.id)) return prev;
+                          return [...prev, q];
+                        });
+                      }}
+                      className="px-6 py-3.5 bg-white/5 hover:bg-white/10 rounded-xl font-semibold text-sm transition-all border border-white/10 text-white/70"
+                    >
+                      Bỏ qua
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={!listeningAnswer.trim()}
+                      className="px-8 py-3.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 disabled:bg-rose-600/50 rounded-xl font-bold text-sm transition-all text-white shadow-lg shadow-rose-600/15 cursor-pointer"
+                    >
+                      Kiểm tra
+                    </button>
+                  </>
+                ) : (
+                  <button 
+                    type="button"
+                    onClick={handleNextListening}
+                    className="px-10 py-3.5 bg-rose-600 hover:bg-rose-500 rounded-xl font-bold text-sm transition-all text-white shadow-lg shadow-rose-500/25 cursor-pointer"
+                  >
+                    {currentIdx < quizQuestions.length - 1 ? 'Tiếp theo' : 'Xem kết quả'}
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+
+          {/* Feedback area with pronunciation, spelling, and translation definition (nghĩa) */}
+          <AnimatePresence>
+            {showListeningFeedback && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 15 }}
+                className={`w-full mt-6 p-5 rounded-2xl border ${
+                  isListeningCorrect 
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                    : 'bg-red-500/10 border-red-500/20 text-red-400'
+                }`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="pt-0.5">
+                    {isListeningCorrect ? (
+                      <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                    ) : (
+                      <XCircle className="w-6 h-6 text-red-400" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-lg mb-1">
+                      {isListeningCorrect ? 'Hoàn toàn chính xác!' : 'Chưa đúng rồi'}
+                    </p>
+                    <p className="text-white/80 text-sm leading-relaxed mb-2">
+                      Từ vựng:{' '}
+                      <strong className="text-white text-base underline decoration-rose-450 decoration-2 underline-offset-2">
+                        {word}
+                      </strong>{' '}
+                      {pos && <span className="text-white/40 text-xs">({pos})</span>}
+                    </p>
+                    <div className="text-white/60 text-xs border-t border-white/5 pt-2 mt-2">
+                      <span className="font-bold text-white/40 uppercase block mb-1">Định nghĩa / Nghĩa:</span>
+                      <p className="text-white/90 text-sm leading-relaxed">{definition}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => speak(word)}
+                    className="p-3 bg-white/5 hover:bg-white/10 rounded-full transition-colors shrink-0"
+                    title="Nghe phát âm"
+                  >
+                    <Volume2 className="w-5 h-5 text-rose-300" />
                   </button>
                 </div>
               </motion.div>
