@@ -328,6 +328,10 @@ export default function App() {
     }
 
     if (correct) {
+      const correctOption = currentQuestion.options.find(o => o.id === currentQuestion.correctId);
+      if (correctOption) {
+        speak(correctOption.text);
+      }
       setTimeout(() => {
         handleNext();
       }, 1500);
