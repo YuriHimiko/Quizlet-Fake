@@ -1,0 +1,25 @@
+{
+  "collections": {
+    "users": {
+      "schema": {
+        "userId": "string",
+        "displayName": "string",
+        "email": "string",
+        "updatedAt": "number"
+      },
+      "subcollections": {
+        "studySets": {
+          "schema": {
+            "id": "string",
+            "title": "string",
+            "questions": "array",
+            "createdAt": "number",
+            "lastScore": "object",
+            "needsReview": "array",
+            "updatedAt": "number"
+          }
+        }
+      }
+    }
+  }
+}

@@ -24,12 +24,16 @@ import {
   RefreshCw,
   User,
   Loader2,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Mail,
+  Lock,
+  Sparkles,
+  Key,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as xlsx from 'xlsx';
 import { 
-  initAuth, 
   googleSignIn, 
   logout, 
   findBackupFile, 
@@ -37,6 +41,22 @@ import {
   createBackupFile, 
   updateBackupFile 
 } from './driveService';
+import {
+  db,
+  auth as firebaseAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
+  signInAnonymously,
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  query,
+  orderBy,
+  onSnapshot
+} from './firebase';
 
 interface Option {
   id: number;
@@ -208,20 +228,87 @@ export default function App() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  // Auth Modal States
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authDisplayName, setAuthDisplayName] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authMsg, setAuthMsg] = useState<{ type: 'success' | 'error'; text: React.ReactNode } | null>(null);
+
   // Initialize Auth state
   useEffect(() => {
-    const unsubscribe = initAuth(
-      (currentUser, token) => {
-        setUser(currentUser);
-        setAccessToken(token);
-      },
-      () => {
-        setUser(null);
-        setAccessToken(null);
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (currentUser) => {
+      setUser(currentUser);
+      const storedToken = localStorage.getItem('google_drive_token');
+      if (storedToken) {
+        setAccessToken(storedToken);
       }
-    );
+    });
     return () => unsubscribe();
   }, []);
+
+  // Synchronize with Firestore in real-time when user logs in
+  useEffect(() => {
+    if (!user) return;
+
+    setIsCloudSyncing(true);
+    let isInitialLoad = true;
+
+    // Listen to studySets subcollection in Firestore
+    const qSnapshot = query(collection(db, 'users', user.uid, 'studySets'), orderBy('createdAt', 'asc'));
+    const unsubscribe = onSnapshot(qSnapshot, async (snapshot) => {
+      const cloudSets: StudySet[] = [];
+      snapshot.forEach((doc) => {
+        cloudSets.push(doc.data() as StudySet);
+      });
+
+      // On initial load, merge local and cloud sets
+      if (isInitialLoad) {
+        isInitialLoad = false;
+        const localSaved = localStorage.getItem('english_quiz_sets');
+        const localSets: StudySet[] = localSaved ? JSON.parse(localSaved) : [];
+
+        if (cloudSets.length === 0 && localSets.length > 0) {
+          setSyncStatus({ type: 'info', message: 'Hòa điệu học phần của Senpai lên mây ma pháp... ✨' });
+          for (const localSet of localSets) {
+            try {
+              await setDoc(doc(db, 'users', user.uid, 'studySets', localSet.id), localSet);
+            } catch (err) {
+              console.error('Error seeding set:', err);
+            }
+          }
+          setIsCloudSyncing(false);
+          setSyncStatus({ type: 'success', message: 'Tất cả học phần cục bộ đã được kết nối lên Cloud! ☁️🌸' });
+        } else if (localSets.length > 0) {
+          let hasNewUploads = false;
+          for (const localSet of localSets) {
+            const existsInCloud = cloudSets.some(cs => cs.id === localSet.id);
+            if (!existsInCloud) {
+              try {
+                await setDoc(doc(db, 'users', user.uid, 'studySets', localSet.id), localSet);
+                hasNewUploads = true;
+              } catch (err) {
+                console.error('Error uploading missing set:', err);
+              }
+            }
+          }
+          if (hasNewUploads) {
+            return;
+          }
+        }
+      }
+
+      setStudySets(cloudSets);
+      setIsCloudSyncing(false);
+    }, (error) => {
+      console.error("Firestore listener error:", error);
+      setIsCloudSyncing(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   // Sync status auto-dismiss
   useEffect(() => {
@@ -238,30 +325,39 @@ export default function App() {
   // Save score when finishing quiz
   useEffect(() => {
     if (view === 'summary' && currentSetId) {
-      setStudySets(prev => prev.map(s => {
-        if (s.id === currentSetId) {
-          const isReviewSession = quizQuestions.length < s.questions.length;
-          const newlyCorrectCount = quizQuestions.length - wrongQuestions.length;
-          const needsReviewIds = wrongQuestions.map(q => q.id);
-          
-          let newCorrect = newlyCorrectCount;
-          let newTotal = quizQuestions.length;
+      let updatedSet: StudySet | null = null;
+      setStudySets(prev => {
+        const nextSets = prev.map(s => {
+          if (s.id === currentSetId) {
+            const isReviewSession = quizQuestions.length < s.questions.length;
+            const newlyCorrectCount = quizQuestions.length - wrongQuestions.length;
+            const needsReviewIds = wrongQuestions.map(q => q.id);
+            
+            let newCorrect = newlyCorrectCount;
+            let newTotal = quizQuestions.length;
 
-          if (isReviewSession && s.lastScore) {
-            newCorrect = s.lastScore.correct + newlyCorrectCount;
-            newTotal = s.questions.length;
+            if (isReviewSession && s.lastScore) {
+              newCorrect = s.lastScore.correct + newlyCorrectCount;
+              newTotal = s.questions.length;
+            }
+
+            updatedSet = { 
+              ...s, 
+              lastScore: { correct: newCorrect, total: newTotal },
+              needsReview: needsReviewIds
+            };
+            return updatedSet;
           }
+          return s;
+        });
 
-          return { 
-            ...s, 
-            lastScore: { correct: newCorrect, total: newTotal },
-            needsReview: needsReviewIds
-          };
+        if (user && updatedSet) {
+          setDoc(doc(db, 'users', user.uid, 'studySets', currentSetId), updatedSet);
         }
-        return s;
-      }));
+        return nextSets;
+      });
     }
-  }, [view, currentSetId, quizQuestions.length, wrongQuestions]);
+  }, [view, currentSetId, quizQuestions.length, wrongQuestions, user]);
 
   // Editor state
   const [editTerms, setEditTerms] = useState<{ id: number; term: string; definition: string }[]>([]);
@@ -574,16 +670,31 @@ export default function App() {
 
     if (newQuestions.length > 0) {
       if (currentSetId) {
-        setStudySets(studySets.map(s => s.id === currentSetId ? { ...s, title: editTitle, questions: newQuestions } : s));
+        const studySetToUpdate = studySets.find(s => s.id === currentSetId);
+        const updatedSet: StudySet = {
+          ...(studySetToUpdate || {}),
+          id: currentSetId,
+          title: editTitle,
+          questions: newQuestions,
+          createdAt: studySetToUpdate?.createdAt || Date.now()
+        };
+        setStudySets(studySets.map(s => s.id === currentSetId ? updatedSet : s));
+        if (user) {
+          setDoc(doc(db, 'users', user.uid, 'studySets', currentSetId), updatedSet);
+        }
       } else {
+        const newSetId = Date.now().toString();
         const newSet: StudySet = {
-          id: Date.now().toString(),
+          id: newSetId,
           title: editTitle,
           questions: newQuestions,
           createdAt: Date.now()
         };
         setStudySets([...studySets, newSet]);
-        setCurrentSetId(newSet.id);
+        setCurrentSetId(newSetId);
+        if (user) {
+          setDoc(doc(db, 'users', user.uid, 'studySets', newSetId), newSet);
+        }
       }
       setQuizQuestions(newQuestions);
       setQuestionStatus(new Array(newQuestions.length).fill('unanswered'));
@@ -822,43 +933,175 @@ export default function App() {
     }
   };
 
+  const getFriendlyAuthError = (error: any, providerName: string): React.ReactNode => {
+    if (!error) return 'Có lỗi không xác định xảy ra!';
+    const code = error.code;
+    
+    if (code === 'auth/operation-not-allowed') {
+      return (
+        <div className="space-y-2">
+          <p className="text-rose-400 font-extrabold text-xs flex items-center gap-1 uppercase tracking-wider font-bubble">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" /> Kích hoạt Firebase Auth
+          </p>
+          <p className="text-[11px] text-white/80 font-bold leading-normal">
+            Phương thức đăng nhập <span className="text-pink-400">"{providerName}"</span> chưa được bật trên Firebase Console!
+          </p>
+          <div className="bg-black/45 p-3 rounded-xl text-[10px] text-pink-200/90 leading-relaxed font-semibold space-y-1.5 border border-white/5">
+            <p className="font-extrabold text-white uppercase text-[9px] tracking-wider mb-1">🛠️ Kích hoạt trong 30 giây:</p>
+            <p>1️⃣ Truy cập trang <strong className="text-white">Firebase Console</strong></p>
+            <p>2️⃣ Chọn dự án của bạn (mã: <span className="text-cyan-300 select-all font-mono font-bold bg-white/5 px-1 py-0.5 rounded">ai-studio-9157...</span>)</p>
+            <p>3️⃣ Vào mục <strong className="text-white">Build ➡️ Authentication</strong></p>
+            <p>4️⃣ Vào tab <strong className="text-white">Sign-in method</strong> ➡️ Click <strong className="text-white">Add new provider</strong></p>
+            <p>5️⃣ Bật phương thức <strong className="text-white">"{providerName}"</strong> lên và bấm lưu nhé! ✨🌸</p>
+          </div>
+        </div>
+      );
+    }
+    
+    if (code === 'auth/popup-closed-by-user') {
+      return (
+        <div className="space-y-1.5">
+          <p className="text-rose-400 font-extrabold text-xs flex items-center gap-1 uppercase tracking-wider font-bubble">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" /> Popup Đăng Nhập Đã Bị Đóng
+          </p>
+          <p className="text-[11px] text-white/80 leading-normal font-bold">
+            Cửa sổ liên kết Google Drive đã bị đóng trước khi hoàn tất xác thực. Hãy thử lại nhen!
+          </p>
+          <p className="text-[10px] text-pink-300/60 leading-normal font-semibold">
+            💡 <strong>Mẹo hay:</strong> Senpai hãy nhấn vào nút <span className="text-pink-300 underline font-bold bg-white/5 px-1.5 py-0.5 rounded">Mở trong cửa sổ mới ↗️</span> ở góc trên bên phải thanh công cụ AI Studio rồi thử lại để tránh bị trình duyệt áp dụng chính sách chặn popup nhé!
+          </p>
+        </div>
+      );
+    }
+
+    if (code === 'auth/popup-blocked') {
+      return (
+        <div className="space-y-1.5">
+          <p className="text-rose-400 font-extrabold text-xs flex items-center gap-1 uppercase tracking-wider font-bubble">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" /> Trình Duyệt Chặn Popup
+          </p>
+          <p className="text-[11px] text-white/80 leading-normal font-bold">
+            Do ứng dụng đang được chạy bên trong Khung iFrame, trình duyệt của bạn chặn các cửa sổ tự động.
+          </p>
+          <p className="text-[10px] text-pink-300/60 leading-normal font-semibold">
+            💡 <strong>Mẹo hay:</strong> Khuyên dùng tính năng <strong className="text-pink-200">Đăng ký Email</strong> cực kỳ thuận tiện, không lo bị chặn popup!
+          </p>
+        </div>
+      );
+    }
+
+    if (code === 'auth/wrong-password' || code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+      return 'Email hoặc mật khẩu chưa chính xác rồi Senpai ơi!';
+    }
+
+    if (code === 'auth/email-already-in-use') {
+      return 'Email này đã được đăng ký trước đó rồi!';
+    }
+
+    if (code === 'auth/invalid-email') {
+      return 'Định dạng Email của Senpai chưa chuẩn xác rồi!';
+    }
+
+    return error.message || 'Có lỗi xảy ra trong quá trình xác thực!';
+  };
+
   const handleSignIn = async () => {
     setIsCloudSyncing(true);
     setSyncStatus({ type: 'info', message: 'Đang kết nối tài khoản Google...' });
     setAuthError(null);
+    setAuthMsg(null);
     try {
        const authResult = await googleSignIn();
        if (authResult) {
          setUser(authResult.user);
          setAccessToken(authResult.accessToken);
-         setSyncStatus({ type: 'success', message: `Đăng nhập Google thành công! Xin chào, ${authResult.user.displayName || 'bạn'}!` });
+         setShowAuthModal(false);
+         setSyncStatus({ type: 'success', message: `Đồng bộ tài khoản thành công! Xin chào, ${authResult.user.displayName || 'Senpai'}! ✨🌸` });
        }
     } catch (error: any) {
        console.error('Sign in error details:', error);
-       let errorMessage = 'Đăng nhập Google thất bại!';
        
-       if (error && error.code) {
-         if (error.code === 'auth/popup-closed-by-user') {
-           errorMessage = 'Bạn đã đóng cửa sổ đăng nhập trước khi hoàn tất. Vui lòng bấm "Liên kết Google Drive" để thử lại và giữ cửa sổ mở.';
-         } else if (error.code === 'auth/popup-blocked') {
-           errorMessage = 'Trình duyệt của bạn đã chặn cửa sổ đăng nhập (Popup Blocker). Vui lòng cho phép hiện popup, hoặc click vào nút "Mở trong cửa sổ mới" ở góc trên của bản xem thử để tránh bị chặn.';
-         } else if (error.code === 'auth/cancelled-popup-request') {
-           errorMessage = 'Yêu cầu mở cửa sổ đăng nhập đã bị hủy.';
-         } else if (error.code === 'auth/network-request-failed') {
-           errorMessage = 'Lỗi kết nối mạng học tập. Vui lòng kiểm tra lại đường truyền mạng.';
-         } else if (error.code === 'auth/operation-not-allowed') {
-           errorMessage = 'Tính năng đăng nhập Google chưa được kích hoạt trên Firebase Console.';
-         } else {
-           errorMessage = `Lỗi hệ thống (${error.code}): Hãy bấm nút "Mở trong tab mới" ở góc trên của thanh công cụ AI Studio rồi thử kết nối lại.`;
-         }
-       } else if (error && error.message) {
-         errorMessage = `Lỗi: ${error.message}`;
-       }
-       
-       setSyncStatus({ type: 'error', message: errorMessage });
-       setAuthError(errorMessage);
+       let friendlyError: React.ReactNode = getFriendlyAuthError(error, 'Google');
+       setSyncStatus({ type: 'error', message: `Lỗi kết nối hoặc cấu hình Firebase Auth nhen!` });
+       setAuthError('Đăng nhập bị hủy hoặc Google provider chưa được kích hoạt ở Firebase Console.');
+       setAuthMsg({ type: 'error', text: friendlyError });
     } finally {
        setIsCloudSyncing(false);
+    }
+  };
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authEmail || !authPassword) {
+      setAuthMsg({ type: 'error', text: 'Nhập đầy đủ email và mật khẩu nha Senpai!' });
+      return;
+    }
+    setAuthLoading(true);
+    setAuthMsg(null);
+    try {
+      const userCredential = await signInWithEmailAndPassword(firebaseAuth, authEmail, authPassword);
+      setUser(userCredential.user);
+      setShowAuthModal(false);
+      setSyncStatus({ type: 'success', message: `Chào mừng Senpai quay trở lại! Ma pháp mây đã hòa nguyên vị! ✨🌸` });
+    } catch (err: any) {
+      console.error(err);
+      const friendlyErr = getFriendlyAuthError(err, 'Email/Password');
+      setAuthMsg({ type: 'error', text: friendlyErr });
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleEmailRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authEmail || !authPassword || !authDisplayName) {
+      setAuthMsg({ type: 'error', text: 'Vui lòng điền đủ Tên, Email và Mật khẩu nhé!' });
+      return;
+    }
+    if (authPassword.length < 6) {
+      setAuthMsg({ type: 'error', text: 'Mật khẩu cần tối thiểu 6 ký tự bảo mật nha!' });
+      return;
+    }
+    setAuthLoading(true);
+    setAuthMsg(null);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(firebaseAuth, authEmail, authPassword);
+      await updateProfile(userCredential.user, { displayName: authDisplayName });
+      setUser({ ...userCredential.user, displayName: authDisplayName });
+      
+      // Seed user profile doc
+      await setDoc(doc(db, 'users', userCredential.user.uid), {
+        userId: userCredential.user.uid,
+        displayName: authDisplayName,
+        email: authEmail,
+        updatedAt: Date.now()
+      });
+
+      setShowAuthModal(false);
+      setSyncStatus({ type: 'success', message: 'Tạo tài khoản ma pháp thành công! ✨🏵️' });
+    } catch (err: any) {
+      console.error(err);
+      const friendlyErr = getFriendlyAuthError(err, 'Email/Password');
+      setAuthMsg({ type: 'error', text: friendlyErr });
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleAnonymousLogin = async () => {
+    setAuthLoading(true);
+    setAuthMsg(null);
+    try {
+      const userCredential = await signInAnonymously(firebaseAuth);
+      setUser(userCredential.user);
+      setShowAuthModal(false);
+      setSyncStatus({ type: 'success', message: 'Hòa mây ẩn danh thành công! Dữ liệu sẽ tạm sao lưu an toàn! ☁️✨' });
+    } catch (err: any) {
+      console.error(err);
+      const friendlyErr = getFriendlyAuthError(err, 'Anonymous');
+      setAuthMsg({ type: 'error', text: friendlyErr });
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -868,75 +1111,9 @@ export default function App() {
       setUser(null);
       setAccessToken(null);
       setShowProfileMenu(false);
-      setSyncStatus({ type: 'success', message: 'Đã đăng xuất tài khoản.' });
+      setSyncStatus({ type: 'success', message: 'Đã tạm thời ngắt kết nối với Đám mây ma pháp.' });
     } catch (error: any) {
       console.error(error);
-    }
-  };
-
-  const handleSaveToCloud = async () => {
-    if (!accessToken) {
-      setSyncStatus({ type: 'error', message: 'Vui lòng đăng nhập Google trước!' });
-      return;
-    }
-    setIsCloudSyncing(true);
-    setSyncStatus({ type: 'info', message: 'Đang sao lưu học phần lên Google Drive...' });
-    try {
-      const fileId = await findBackupFile(accessToken);
-      if (fileId) {
-        const success = await updateBackupFile(accessToken, fileId, studySets);
-        if (success) {
-          setSyncStatus({ type: 'success', message: 'Đã sao lưu thành công lên Google Drive!' });
-        } else {
-          setSyncStatus({ type: 'error', message: 'Sao lưu thất bại. Vui lòng thử lại!' });
-        }
-      } else {
-        const newFileId = await createBackupFile(accessToken, studySets);
-        if (newFileId) {
-          setSyncStatus({ type: 'success', message: 'Đã tạo bản sao lưu mới trên Google Drive!' });
-        } else {
-          setSyncStatus({ type: 'error', message: 'Không thể tạo tệp sao lưu trên Google Drive!' });
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      setSyncStatus({ type: 'error', message: 'Lỗi đồng bộ dữ liệu!' });
-    } finally {
-      setIsCloudSyncing(false);
-    }
-  };
-
-  const handleLoadFromCloud = async () => {
-    if (!accessToken) {
-      setSyncStatus({ type: 'error', message: 'Vui lòng đăng nhập Google trước!' });
-      return;
-    }
-    const confirmRestore = window.confirm(
-      'Hành động này sẽ tải toàn bộ học phần từ Google Drive về và THAY THẾ hoàn toàn học phần hiện tại trên thiết bị này. Bạn có muốn tiếp tục?'
-    );
-    if (!confirmRestore) return;
-
-    setIsCloudSyncing(true);
-    setSyncStatus({ type: 'info', message: 'Đang tải học phần từ Google Drive...' });
-    try {
-      const fileId = await findBackupFile(accessToken);
-      if (fileId) {
-        const cloudData = await downloadBackupFile(accessToken, fileId);
-        if (cloudData && Array.isArray(cloudData)) {
-          setStudySets(cloudData);
-          localStorage.setItem('english_quiz_sets', JSON.stringify(cloudData));
-          setSyncStatus({ type: 'success', message: `Nhập thành công ${cloudData.length} học phần từ Google Drive!` });
-        } else {
-          setSyncStatus({ type: 'error', message: 'Tệp sao lưu không hợp lệ hoặc trống!' });
-        }
-      } else {
-        setSyncStatus({ type: 'error', message: 'Không tìm thấy bản sao lưu nào trên Google Drive!' });
-      }
-    } catch (err) {
-      console.error(err);
-      setSyncStatus({ type: 'error', message: 'Lỗi tải dữ liệu sao lưu!' });
-    } finally {
-      setIsCloudSyncing(false);
     }
   };
 
@@ -1006,53 +1183,37 @@ export default function App() {
                     <img src={user.photoURL} alt={user.displayName} referrerPolicy="no-referrer" className="w-5 h-5 rounded-full border border-pink-300" />
                   ) : (
                     <div className="w-5 h-5 rounded-full bg-pink-500 flex items-center justify-center text-[10px] font-bold text-white uppercase">
-                      {user.displayName ? user.displayName.charAt(0) : 'U'}
+                      {user.displayName ? user.displayName.charAt(0) : 'S'}
                     </div>
                   )}
                   <span className="text-xs font-black text-pink-200 hidden sm:inline max-w-[120px] truncate">
-                    {user.displayName || user.email || 'Cloud User'}
+                    {user.displayName || user.email?.split('@')[0] || 'Senpai 🌸'}
                   </span>
                   <ChevronDown className={`w-4 h-4 text-pink-300/50 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
                 </button>
 
-
                 {showProfileMenu && (
-                  <div className="absolute right-0 mt-2 w-56 bg-[#15162c] border border-white/10 rounded-xl shadow-2xl py-2 z-50">
-                    <div className="px-4 py-2 border-b border-white/5">
-                      <p className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Tài khoản</p>
-                      <p className="text-sm font-semibold truncate text-white">{user.displayName || 'Người dùng'}</p>
-                      <p className="text-xs text-white/50 truncate font-mono">{user.email}</p>
+                  <div className="absolute right-0 mt-2 w-64 bg-[#15162c] border-2 border-pink-500/20 rounded-2xl shadow-2xl py-2 z-50 overflow-hidden text-left">
+                    <div className="px-4 py-3 bg-[#1e1435]">
+                      <p className="text-[9px] text-pink-400 uppercase font-black tracking-wider">Pháp Tịch Ma Pháp Quyết</p>
+                      <p className="text-sm font-extrabold truncate text-white mt-0.5">{user.displayName || 'Pháp sư học từ'}</p>
+                      <p className="text-[10px] text-pink-300/60 truncate font-mono">{user.email || 'Hòa mây ẩn danh'}</p>
                     </div>
                     
-                    <button 
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        handleSaveToCloud();
-                      }}
-                      disabled={isCloudSyncing}
-                      className="w-full text-left px-4 py-2.5 hover:bg-[#1f203f] flex items-center gap-2 text-sm text-indigo-300 hover:text-indigo-200 transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      <CloudUpload className="w-4 h-4 shrink-0" />
-                      <span>Sao lưu lên Cloud</span>
-                    </button>
+                    <div className="px-4 py-3 border-b border-white/5 bg-[#17112d] flex items-center gap-2 text-xs text-emerald-400 font-extrabold">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang Tự Động Đồng Bộ 🔄✨</span>
+                    </div>
 
-                    <button 
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        handleLoadFromCloud();
-                      }}
-                      disabled={isCloudSyncing}
-                      className="w-full text-left px-4 py-2.5 hover:bg-[#1f203f] flex items-center gap-2 text-sm text-emerald-300 hover:text-emerald-200 transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      <CloudDownload className="w-4 h-4 shrink-0" />
-                      <span>Khôi phục từ Cloud</span>
-                    </button>
+                    <div className="px-4 py-2 text-[11px] text-white/50 leading-relaxed max-h-[100px] overflow-y-auto">
+                      Học phần ma pháp được đồng bộ tức thì lên tất cả thiết bị của Senpai! 💻📱
+                    </div>
 
                     <div className="border-t border-white/5 my-1"></div>
 
                     <button 
                       onClick={handleSignOut}
-                      className="w-full text-left px-4 py-2.5 hover:bg-red-500/10 text-red-400 hover:text-red-300 flex items-center gap-2 text-sm transition-colors cursor-pointer"
+                      className="w-full text-left px-4 py-2.5 hover:bg-rose-500/15 text-rose-400 hover:text-rose-300 flex items-center gap-2 text-sm font-bold transition-all cursor-pointer"
                     >
                       <LogOut className="w-4 h-4 shrink-0" />
                       <span>Đăng xuất</span>
@@ -1062,93 +1223,62 @@ export default function App() {
               </div>
             ) : (
               <button 
-                onClick={handleSignIn}
-                disabled={isCloudSyncing}
-                className="bg-[#1c1e3d] hover:bg-indigo-950/50 text-indigo-300 hover:text-indigo-250 border border-indigo-500/30 px-5 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
+                onClick={() => {
+                  setAuthMsg(null);
+                  setShowAuthModal(true);
+                }}
+                className="bg-gradient-to-r from-pink-600 to-violet-600 hover:from-pink-500 hover:to-violet-500 text-white px-5 py-2.5 rounded-2xl font-black transition-all flex items-center gap-2 shadow-lg hover:-translate-y-0.5 anime-shadow-pink text-sm cursor-pointer border-2 border-pink-400/50"
               >
-                <Cloud className="w-4 h-4" /> {isCloudSyncing ? 'Đang kết nối...' : 'Lưu Cloud (OAuth)'}
+                <Cloud className="w-4 h-4 animate-bounce" /> Đồng bộ Ma pháp ☁️✨
               </button>
             )}
           </div>
         </header>
 
         <main className="flex-1 max-w-5xl mx-auto w-full py-12">
-          {/* Cloud Info Banner */}
+          {/* Cloud Synchronization Status Banner */}
           {user ? (
-            <div className="mb-8 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex flex-col md:flex-row items-center md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                  <Cloud className="w-5 h-5" />
+            <div className="mb-8 p-5 bg-[#142d22] border-2 border-emerald-500/30 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg anime-shadow-emerald relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-1 bg-emerald-500/10 text-emerald-400 text-[9px] font-black tracking-wider uppercase font-mono px-2 py-0.5 rounded-bl-xl border-l border-b border-emerald-500/20">
+                CLOUD ACTIVE ☁️✨
+              </div>
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20 shrink-0">
+                  <Cloud className="w-6 h-6 animate-pulse" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-emerald-400">Đã kết nối dữ liệu Google Drive</p>
-                  <p className="text-xs text-white/50">Học phần của bạn có thể được sao lưu lên Cloud hoặc khôi phục về thiết bị bất cứ lúc nào, giúp an tâm học tập.</p>
+                  <p className="text-sm md:text-base font-extrabold text-emerald-400 font-bubble">Kết Nối Mây Ma Pháp Tự Động Thành Công!</p>
+                  <p className="text-xs text-emerald-300/60 font-semibold mt-0.5">
+                    Học phần của Senpai hiện đang được lưu trữ an toàn và đồng bộ tự động <strong>tức thì</strong> giữa Máy tính và Điện thoại di động nhen! 📱💻
+                  </p>
                 </div>
-              </div>
-              <div className="flex gap-2 w-full md:w-auto shrink-0 justify-end">
-                <button 
-                  onClick={handleSaveToCloud}
-                  disabled={isCloudSyncing}
-                  className="bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/30 text-emerald-300 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                >
-                  <CloudUpload className="w-3.5 h-3.5" /> Sao lưu ngay
-                </button>
-                <button 
-                  onClick={handleLoadFromCloud}
-                  disabled={isCloudSyncing}
-                  className="bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-500/30 text-indigo-300 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                >
-                  <CloudDownload className="w-3.5 h-3.5" /> Khôi phục về máy
-                </button>
               </div>
             </div>
           ) : (
-            <div className="mb-8 flex flex-col gap-4">
-              <div className="p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                    <Cloud className="w-5 h-5 animate-pulse" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-indigo-400">Trải nghiệm đồng bộ Cloud bảo mật</p>
-                    <p className="text-xs text-white/50">Đăng nhập bằng tài khoản Google để tự động sao lưu tất cả các bộ học phần lên tài khoản Drive cá nhân an toàn.</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={handleSignIn}
-                  disabled={isCloudSyncing}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-indigo-500/15 cursor-pointer w-full md:w-auto text-center justify-center shrink-0 animate-bounce"
-                >
-                  <Cloud className="w-3.5 h-3.5" /> {isCloudSyncing ? 'Đang kết nối...' : 'Liên kết Google Drive'}
-                </button>
+            <div className="mb-8 p-5 bg-[#191535] border-2 border-pink-500/20 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-md relative overflow-hidden text-left">
+              <div className="absolute top-0 right-0 p-1 bg-pink-500/10 text-pink-400 text-[9px] font-black tracking-wider uppercase font-mono px-2 py-0.5 rounded-bl-xl border-l border-b border-pink-500/20 animate-pulse">
+                OFFLINE MODE 📴
               </div>
-
-              {authError && (
-                <div className="p-5 bg-red-500/5 border border-red-500/20 rounded-2xl flex flex-col gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500 shrink-0 mt-0.5">
-                      <X className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-red-400">Yêu cầu đăng nhập bị hủy hoặc bị chặn</p>
-                      <p className="text-xs text-red-200/80 mt-1 leading-relaxed">
-                        {authError}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="pl-11 pr-2 py-3 bg-[#110e1a]/80 rounded-xl text-xs text-white/60 space-y-2 leading-relaxed border border-white/5">
-                    <p className="font-semibold text-white/80">💡 Tại sao lỗi này xảy ra?</p>
-                    <p>Ứng dụng hiện đang được đặt bên trong <strong>Khung nội dung (iFrame)</strong> của AI Studio. Một số trình duyệt (như Safari, Chrome, Edge) có chính sách bảo mật chặn các cửa sổ popups tự động hoặc chặn ghi nhận cookies bên thứ ba trong bối cảnh iframe.</p>
-                    
-                    <p className="font-semibold text-white/80 pt-1">🛠️ Cách khắc phục cực kỳ đơn giản:</p>
-                    <ul className="list-decimal pl-4 space-y-1">
-                      <li>Bấm vào biểu tượng <strong>"Mở trong tab mới" (Open in a new window)</strong> ở góc trên bên phải khung xem thử của AI Studio. Biểu tượng này trông giống một ô vuông có mũi tên trỏ ra ngoài.</li>
-                      <li>Sau khi ứng dụng mở ra trang riêng biệt, bạn bấm nút <strong>"Liên kết Google Drive"</strong> là có thể đăng nhập bình thường mà không bao giờ bị chặn nữa!</li>
-                    </ul>
-                  </div>
+              <div className="flex items-center gap-3.5 text-left">
+                <div className="w-11 h-11 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-400 border border-pink-500/20 shrink-0">
+                  <Cloud className="w-6 h-6" />
                 </div>
-              )}
+                <div className="text-left">
+                  <p className="text-sm md:text-base font-extrabold text-pink-200 font-bubble">Đồng bộ từ vựng giữa Máy tính & Điện thoại? 💻↔️📱</p>
+                  <p className="text-xs text-pink-300/60 font-medium mt-1 leading-relaxed">
+                    Hãy đăng nhập tài khoản đám mây ma pháp học tập để giữ toàn bộ học phần của bạn an toàn, đồng bộ dễ dàng và học tiếp trên các thiết bị khác hoàn toàn miễn phí!
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setAuthMsg(null);
+                  setShowAuthModal(true);
+                }}
+                className="w-full md:w-auto shrink-0 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 text-white font-extrabold text-xs px-5 py-3 rounded-2xl transition-all shadow-md hover:-translate-y-0.5 anime-shadow-pink text-center cursor-pointer"
+              >
+                Kích hoạt đồng bộ Cloud ✨
+              </button>
             </div>
           )}
           <KokoMascot 
@@ -1299,6 +1429,9 @@ export default function App() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setStudySets(studySets.filter(s => s.id !== set.id));
+                            if (user) {
+                              deleteDoc(doc(db, 'users', user.uid, 'studySets', set.id));
+                            }
                             setDeleteConfirmId(null);
                             if (currentSetId === set.id) setCurrentSetId(null);
                           }}
@@ -1354,6 +1487,148 @@ export default function App() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          
+          {/* Authentication & Integration Modal Overlay */}
+          {showAuthModal && (
+            <div className="fixed inset-0 bg-[#060413]/90 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-[#151233] border-4 border-pink-500/30 rounded-3xl w-full max-w-md p-6 relative shadow-2xl overflow-hidden text-left"
+              >
+                {/* Decorative background stars */}
+                <span className="absolute top-4 right-12 text-pink-500/20 text-xl select-none animate-ping">⭐</span>
+                <span className="absolute bottom-12 left-4 text-violet-500/20 text-2xl select-none animate-bounce">🌸</span>
+
+                <button 
+                  onClick={() => setShowAuthModal(false)}
+                  className="absolute top-4 right-4 text-white/40 hover:text-white bg-[#201c4c] p-2 rounded-full cursor-pointer transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                <div className="text-center mb-6">
+                  <span className="text-4xl block mb-2">☁️✨</span>
+                  <h3 className="text-2xl font-black bg-gradient-to-r from-pink-400 via-purple-300 to-cyan-300 bg-clip-text text-transparent font-bubble">
+                    ĐỒNG BỘ MA PHÁP
+                  </h3>
+                  <p className="text-xs text-pink-300/60 font-semibold mt-1">Đồng bộ từ vựng Máy tính & Điện thoại không giới hạn!</p>
+                </div>
+
+                {/* Tab selectors */}
+                <div className="grid grid-cols-2 gap-2 bg-[#0e0a26] p-1.5 rounded-2xl mb-5">
+                  <button 
+                    onClick={() => {
+                      setAuthTab('login');
+                      setAuthMsg(null);
+                    }}
+                    className={`py-2 text-xs font-black rounded-xl transition-all cursor-pointer ${
+                      authTab === 'login' 
+                        ? 'bg-pink-600 text-white shadow anime-shadow-pink' 
+                        : 'text-white/50 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    ĐĂNG NHẬP 🔑
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setAuthTab('register');
+                      setAuthMsg(null);
+                    }}
+                    className={`py-2 text-xs font-black rounded-xl transition-all cursor-pointer ${
+                      authTab === 'register' 
+                        ? 'bg-pink-600 text-white shadow anime-shadow-pink' 
+                        : 'text-white/50 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    ĐĂNG KÝ 🌱
+                  </button>
+                </div>
+
+                {authMsg && (
+                  <div className={`p-3.5 rounded-xl border mb-4 text-xs font-bold font-bubble ${
+                    authMsg.type === 'error' 
+                      ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' 
+                      : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  }`}>
+                    {authMsg.text}
+                  </div>
+                )}
+
+                <form onSubmit={authTab === 'login' ? handleEmailLogin : handleEmailRegister} className="space-y-4">
+                  {authTab === 'register' && (
+                    <div>
+                      <label className="block text-[11px] text-pink-300 font-extrabold uppercase tracking-wider mb-1.5">Tên hiển thị (Senpai Name)</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ví dụ: Koko Senpai" 
+                        value={authDisplayName}
+                        onChange={(e) => setAuthDisplayName(e.target.value)}
+                        className="w-full bg-[#0b0821] border border-pink-500/20 focus:border-pink-500 outline-none rounded-xl px-4 py-3 text-sm text-white font-semibold transition-colors shadow-inner"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[11px] text-pink-300 font-extrabold uppercase tracking-wider mb-1.5">Địa chỉ Email</label>
+                    <input 
+                      type="email" 
+                      placeholder="senpai@example.com" 
+                      value={authEmail}
+                      onChange={(e) => setAuthEmail(e.target.value)}
+                      className="w-full bg-[#0b0821] border border-pink-500/20 focus:border-pink-500 outline-none rounded-xl px-4 py-3 text-sm text-white font-semibold transition-colors shadow-inner"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-pink-300 font-extrabold uppercase tracking-wider mb-1.5">Mật khẩu</label>
+                    <input 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      className="w-full bg-[#0b0821] border border-pink-500/20 focus:border-pink-500 outline-none rounded-xl px-4 py-3 text-sm text-white font-semibold transition-colors shadow-inner"
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    disabled={authLoading}
+                    className="w-full bg-gradient-to-r from-pink-600 to-violet-600 hover:from-pink-500 hover:to-violet-500 text-white font-black py-3 rounded-xl transition-all shadow-lg hover:-translate-y-0.5 anime-shadow-pink text-xs uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    {authLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
+                    <span>{authTab === 'login' ? 'Xác nhận Đăng Nhập ✨' : 'Hoàn Tất Đăng Ký ✨'}</span>
+                  </button>
+                </form>
+
+                <div className="relative my-6 text-center">
+                  <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-white/10" />
+                  <span className="relative bg-[#151233] px-3 text-[10px] text-white/40 uppercase font-black tracking-widest font-mono">hoặc chọn mây khác</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={handleSignIn}
+                    disabled={authLoading}
+                    className="bg-[#2a2d52] hover:bg-[#343867] border border-white/10 text-white font-extrabold text-xs py-2.5 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 shadow"
+                  >
+                    <span>Google 🌐</span>
+                  </button>
+                  <button 
+                    onClick={handleAnonymousLogin}
+                    disabled={authLoading}
+                    className="bg-indigo-950/40 hover:bg-indigo-950/80 border border-indigo-500/15 text-indigo-300 font-extrabold text-xs py-2.5 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 shadow"
+                  >
+                    <span>Ẩn danh 👤</span>
+                  </button>
+                </div>
+
+                <div className="mt-5 text-center px-4 py-2 bg-[#0e0a26] rounded-xl text-[10px] text-pink-300/50 leading-relaxed font-semibold">
+                  💡 <strong>Senpai lưu ý:</strong> Bạn có thể mở ứng dụng bằng nút <strong>"Mở trong cửa sổ mới" (Open in new window)</strong> trên AI Studio để dùng Google Mail mà không bị trình duyệt chặn nhen!
+                </div>
+              </motion.div>
             </div>
           )}
         </main>
