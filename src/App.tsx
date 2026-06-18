@@ -186,6 +186,40 @@ function KokoMascot({ expression, text }: { expression: 'happy' | 'smile' | 'che
   );
 }
 
+function DomainCopyBox() {
+  const [copied, setCopied] = useState(false);
+  const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(currentHost);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy host:', err);
+    }
+  };
+
+  return (
+    <div className="bg-[#100c2a] border border-white/10 p-2.5 rounded-xl flex items-center justify-between gap-2 mt-2">
+      <code className="text-pink-300 font-mono text-[10px] break-all select-all font-bold">
+        {currentHost || 'đang tải...'}
+      </code>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className={`px-2.5 py-1 text-[9px] font-black rounded-lg transition-all shrink-0 cursor-pointer ${
+          copied 
+            ? 'bg-emerald-600/25 text-emerald-300 border border-emerald-500/30' 
+            : 'bg-pink-600/20 hover:bg-pink-600/35 text-pink-300 border border-pink-500/30 font-bold'
+        }`}
+      >
+        {copied ? 'ĐÃ SAO CHÉP! ✅' : 'SAO CHÉP 📋'}
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const [studySets, setStudySets] = useState<StudySet[]>(() => {
     const saved = localStorage.getItem('english_quiz_sets');
@@ -986,6 +1020,30 @@ export default function App() {
           <p className="text-[10px] text-pink-300/60 leading-normal font-semibold">
             💡 <strong>Mẹo hay:</strong> Khuyên dùng tính năng <strong className="text-pink-200">Đăng ký Email</strong> cực kỳ thuận tiện, không lo bị chặn popup!
           </p>
+        </div>
+      );
+    }
+
+    if (code === 'auth/unauthorized-domain') {
+      return (
+        <div className="space-y-2">
+          <p className="text-rose-400 font-extrabold text-xs flex items-center gap-1 uppercase tracking-wider font-bubble">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" /> Tên Miền Chưa Cấp Phép
+          </p>
+          <p className="text-[11px] text-white/90 font-bold leading-normal">
+            Tên miền preview hiện tại của Senpai chưa được ủy quyền trong Auth của Firebase project!
+          </p>
+          
+          <DomainCopyBox />
+
+          <div className="bg-black/45 p-3 rounded-xl text-[10px] text-pink-200/90 leading-relaxed font-semibold space-y-1.5 border border-white/5">
+            <p className="font-extrabold text-white uppercase text-[9px] tracking-wider mb-1">🛠️ Cách cấp phép siêu tốc:</p>
+            <p>1️⃣ Truy cập <strong className="text-white">Firebase Console</strong></p>
+            <p>2️⃣ Chọn dự án của bạn (mã: <span className="text-cyan-300 select-all font-mono font-bold bg-white/5 px-1 py-0.5 rounded">9157e452-9282-4891-a427-8fd4e7fe327c</span>)</p>
+            <p>3️⃣ Vào <strong className="text-white">Build ➡️ Authentication</strong> ➡️ chọn tab <strong className="text-white">Settings</strong></p>
+            <p>4️⃣ Chọn mục <strong className="text-white">Authorized domains</strong> ở danh sách bên trái</p>
+            <p>5️⃣ Bấm <strong className="text-white">Add domain</strong> ➡️ dán tên miền đã copy ở trên vào và bấm <strong className="text-white">Add</strong> nhen! ✨🌸</p>
+          </div>
         </div>
       );
     }
