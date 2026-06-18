@@ -122,6 +122,50 @@ const INITIAL_QUESTIONS: Question[] = [
   }
 ];
 
+const MASCOT_URL = "/src/assets/images/anime_mascot_1781746439261.jpg";
+
+function KokoMascot({ expression, text }: { expression: 'happy' | 'smile' | 'cheer' | 'sad' | 'surprised'; text: string }) {
+  const getAvatarEmoji = () => {
+    switch (expression) {
+      case 'happy': return '🌸';
+      case 'cheer': return '✨';
+      case 'sad': return '💔';
+      case 'surprised': return '☄️';
+      default: return '💕';
+    }
+  };
+
+  return (
+    <div className="relative flex flex-col md:flex-row items-center gap-4 bg-[#1e1445]/90 border-2 border-pink-400/40 p-5 rounded-3xl shadow-lg anime-shadow-pink mb-8 animate-cute-pulse text-left w-full max-w-5xl mx-auto backdrop-blur-md">
+      <span className="absolute -top-3 -right-3 text-2xl animate-spin" style={{ animationDuration: '8s' }}>⭐</span>
+      <span className="absolute -bottom-3 -left-3 text-2xl animate-bounce" style={{ animationDuration: '5s' }}>🌸</span>
+
+      <div className="relative shrink-0">
+        <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-pink-400 shadow-md bg-pink-100">
+          <img 
+            src={MASCOT_URL} 
+            alt="Koko-chan" 
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+        <div className="absolute -bottom-2 -right-2 bg-pink-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-md border border-pink-300">
+          Koko {getAvatarEmoji()}
+        </div>
+      </div>
+      <div className="flex-1 text-center md:text-left">
+        <h4 className="text-pink-300 font-bold text-sm tracking-widest uppercase mb-1 flex items-center justify-center md:justify-start gap-1">
+          <span>Koko-chan • Trợ lý ma thuật</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        </h4>
+        <p className="text-pink-100 font-semibold text-sm md:text-base leading-relaxed tracking-wide font-bubble">
+          "{text}"
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [studySets, setStudySets] = useState<StudySet[]>(() => {
     const saved = localStorage.getItem('english_quiz_sets');
@@ -596,18 +640,55 @@ export default function App() {
         // Convert to array of arrays
         const data = xlsx.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
         
-        // Check if there is a header row to skip
+        let termColIndex = 0;
+        let defColIndex = 1;
+        let posColIndex = 2; // Default to index 2
         let startIndex = 0;
+
         if (data.length > 0) {
           const firstRow = data[0];
           if (firstRow && firstRow.length >= 2) {
-            const col1 = String(firstRow[0] || '').toLowerCase().trim();
-            const col2 = String(firstRow[1] || '').toLowerCase().trim();
-            if (
-              col1 === 'term' || col1 === 'từ vựng' || col1 === 'word' || col1 === 'english' ||
-              col2 === 'definition' || col2 === 'nghĩa' || col2 === 'meaning' || col2 === 'vietnamese'
-            ) {
-              startIndex = 1;
+            let foundTerm = -1;
+            let foundDef = -1;
+            let foundPos = -1;
+
+            for (let i = 0; i < firstRow.length; i++) {
+              const cellVal = String(firstRow[i] || '').toLowerCase().trim();
+              if (
+                cellVal === 'term' || cellVal === 'từ vựng' || cellVal === 'word' || 
+                cellVal === 'english' || cellVal === 'tiếng anh' || cellVal === 'từ' || cellVal === 'vocab'
+              ) {
+                foundTerm = i;
+              } else if (
+                cellVal === 'definition' || cellVal === 'nghĩa' || cellVal === 'meaning' || 
+                cellVal === 'vietnamese' || cellVal === 'tiếng việt' || cellVal === 'dịch nghĩa' || cellVal === 'giải thích'
+              ) {
+                foundDef = i;
+              } else if (
+                cellVal === 'part of speech' || cellVal === 'từ loại' || cellVal === 'pos' || 
+                cellVal === 'loại từ' || cellVal === 'classification'
+              ) {
+                foundPos = i;
+              }
+            }
+
+            if (foundTerm !== -1 && foundDef !== -1) {
+              termColIndex = foundTerm;
+              defColIndex = foundDef;
+              if (foundPos !== -1) {
+                posColIndex = foundPos;
+              }
+              startIndex = 1; // Mark header row to be skipped
+            } else {
+              // Fallback logic if there are no matching headers
+              const col1 = String(firstRow[0] || '').toLowerCase().trim();
+              const col2 = String(firstRow[1] || '').toLowerCase().trim();
+              if (
+                col1 === 'term' || col1 === 'từ vựng' || col1 === 'word' || col1 === 'english' ||
+                col2 === 'definition' || col2 === 'nghĩa' || col2 === 'meaning' || col2 === 'vietnamese'
+              ) {
+                startIndex = 1;
+              }
             }
           }
         }
@@ -617,21 +698,25 @@ export default function App() {
         newTerms = rowsToProcess
           .filter(row => row && row.length >= 2) // Ensure at least 2 columns exist
           .map(row => {
-            const rawTerm = String(row[0] || '').trim();
-            const definition = String(row[1] || '').trim();
+            const rawTerm = String(row[termColIndex] || '').trim();
+            const definition = String(row[defColIndex] || '').trim();
             let term = rawTerm;
             
-            // Check if there's a 3rd column for part of speech (từ loại)
-            if (row.length >= 3 && row[2] !== undefined && row[2] !== null) {
-              let pos = String(row[2]).trim();
+            // Check if there's a column for part of speech (từ loại)
+            if (posColIndex < row.length && row[posColIndex] !== undefined && row[posColIndex] !== null) {
+              let pos = String(row[posColIndex]).trim();
               if (pos) {
-                // Strip outer parentheses from the part of speech if they exist (e.g. "(n)" or "((n))")
+                // Strip outer and inner duplicate parentheses (e.g. "((n))" or "(n)" or "( n )" or "(( n ))" -> "n")
                 while (pos.startsWith('(') && pos.endsWith(')')) {
                   pos = pos.slice(1, -1).trim();
                 }
+                while (pos.startsWith('(')) pos = pos.slice(1).trim();
+                while (pos.endsWith(')')) pos = pos.slice(0, -1).trim();
+
                 if (pos) {
-                  // If term doesn't already contain part of speech parentheses, format it
-                  if (!term.includes('(') && !term.includes(')')) {
+                  // Double check if term doesn't already contain part of speech parentheses
+                  const hasParens = /\(.*\)$/.test(term);
+                  if (!hasParens && !term.includes('(') && !term.includes(')')) {
                     term = `${term} (${pos})`;
                   }
                 }
@@ -859,35 +944,46 @@ export default function App() {
 
   if (view === 'dashboard') {
     return (
-      <div className="min-h-screen bg-[#0a0b1e] text-white flex flex-col font-sans p-6">
+      <div className="min-h-screen bg-[#0d0727] text-white flex flex-col font-sans p-6 pb-20 relative overflow-hidden">
+        {/* Soft floating sakura petals decorative ornaments */}
+        <div className="absolute top-10 left-10 text-white/5 text-4xl select-none pointer-events-none animate-bounce" style={{ animationDuration: '10s' }}>🌸</div>
+        <div className="absolute bottom-20 right-10 text-white/5 text-5xl select-none pointer-events-none animate-pulse" style={{ animationDuration: '8s' }}>🌸</div>
+        <div className="absolute top-1/3 right-1/4 text-white/5 text-3xl select-none pointer-events-none animate-bounce" style={{ animationDuration: '14s' }}>✨</div>
+        <div className="absolute bottom-1/3 left-1/5 text-white/5 text-4xl select-none pointer-events-none animate-pulse" style={{ animationDuration: '12s' }}>⭐</div>
+
         {syncStatus && (
-          <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-2xl border transition-all duration-300 max-w-sm flex items-center gap-3 ${
-            syncStatus.type === 'success' ? 'bg-[#152e24] border-emerald-500/50 text-emerald-300' :
-            syncStatus.type === 'error' ? 'bg-[#3b1c1c] border-red-500/50 text-red-300' :
-            'bg-[#1c1e3d] border-indigo-500/50 text-indigo-300'
+          <div className={`fixed top-4 right-4 z-50 p-4 rounded-2xl shadow-2xl border-2 transition-all duration-300 max-w-sm flex items-center gap-3 anime-shadow-purple ${
+            syncStatus.type === 'success' ? 'bg-[#152e24] border-emerald-500 text-emerald-200' :
+            syncStatus.type === 'error' ? 'bg-[#3b1c1c] border-red-500 text-red-200' :
+            'bg-[#1e1346] border-purple-500 text-purple-200'
           }`}>
             {isCloudSyncing ? (
               <Loader2 className="w-5 h-5 animate-spin shrink-0" />
             ) : syncStatus.type === 'success' ? (
-              <Check className="w-5 h-5 shrink-0" />
+              <Check className="w-5 h-5 shrink-0 text-emerald-400" />
             ) : syncStatus.type === 'error' ? (
-              <X className="w-5 h-5 shrink-0" />
+              <X className="w-5 h-5 shrink-0 text-red-400" />
             ) : (
-              <Cloud className="w-5 h-5 shrink-0" />
+              <Cloud className="w-5 h-5 shrink-0 text-pink-400" />
             )}
-            <p className="text-sm font-medium">{syncStatus.message}</p>
+            <p className="text-sm font-bold font-bubble">{syncStatus.message}</p>
           </div>
         )}
 
-        <header className="flex items-center justify-between py-6 max-w-5xl mx-auto w-full border-b border-white/10">
+        <header className="flex flex-col sm:flex-row items-center justify-between py-6 max-w-5xl mx-auto w-full border-b border-pink-500/20 gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full border-2 border-indigo-500 flex items-center justify-center">
-              <CircleDot className="w-6 h-6 text-indigo-400" />
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-500 to-violet-600 border-2 border-pink-300 flex items-center justify-center shadow-lg shadow-pink-500/20 animate-spin" style={{ animationDuration: '25s' }}>
+              <span className="text-xl">🌸</span>
             </div>
-            <h1 className="text-2xl font-bold">Thư viện của bạn</h1>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-pink-300 via-purple-300 to-cyan-300 bg-clip-text text-transparent font-bubble">
+                PHÒNG HỌC MA THUẬT
+              </h1>
+              <p className="text-[10px] text-pink-300/60 font-semibold tracking-wider font-mono uppercase">ANIME KAWAI STUDY ENGINE v2.0</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
             <button 
               onClick={() => {
                 setCurrentSetId(null);
@@ -895,29 +991,30 @@ export default function App() {
                 setEditTerms([{ id: Date.now(), term: '', definition: '' }]);
                 setView('editor');
               }}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/20 text-sm cursor-pointer"
+              className="bg-pink-600 hover:bg-pink-500 text-white px-5 py-2.5 rounded-2xl font-black transition-all flex items-center gap-2 shadow-lg hover:-translate-y-0.5 anime-shadow-pink text-sm cursor-pointer border-2 border-pink-400/50"
             >
-              <Plus className="w-4 h-4" /> Tạo học phần
+              <Plus className="w-4 h-4" /> Tạo học phần 🌟
             </button>
 
             {user ? (
               <div className="relative">
                 <button 
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="bg-[#15162c] hover:bg-[#1a1c38] border border-white/10 px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all cursor-pointer"
+                  className="bg-[#1f1642] hover:bg-[#281d54] border-2 border-pink-400/30 px-4 py-2.5 rounded-2xl flex items-center gap-2 transition-all cursor-pointer shadow-md"
                 >
                   {user.photoURL ? (
-                    <img src={user.photoURL} alt={user.displayName} referrerPolicy="no-referrer" className="w-5 h-5 rounded-full" />
+                    <img src={user.photoURL} alt={user.displayName} referrerPolicy="no-referrer" className="w-5 h-5 rounded-full border border-pink-300" />
                   ) : (
-                    <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-[10px] font-bold text-white uppercase">
+                    <div className="w-5 h-5 rounded-full bg-pink-500 flex items-center justify-center text-[10px] font-bold text-white uppercase">
                       {user.displayName ? user.displayName.charAt(0) : 'U'}
                     </div>
                   )}
-                  <span className="text-sm font-medium hidden sm:inline max-w-[120px] truncate">
+                  <span className="text-xs font-black text-pink-200 hidden sm:inline max-w-[120px] truncate">
                     {user.displayName || user.email || 'Cloud User'}
                   </span>
-                  <ChevronDown className={`w-4 h-4 text-white/50 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-4 h-4 text-pink-300/50 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
                 </button>
+
 
                 {showProfileMenu && (
                   <div className="absolute right-0 mt-2 w-56 bg-[#15162c] border border-white/10 rounded-xl shadow-2xl py-2 z-50">
@@ -1054,19 +1151,44 @@ export default function App() {
               )}
             </div>
           )}
+          <KokoMascot 
+            expression="smile" 
+            text="Chào mừng Senpai quay lại phòng học ma thuật! Hôm nay chúng ta cùng nhau ôn luyện & chinh phục từ vựng tiếng Anh nhé! Ganbare! 🌸✨"
+          />
+
           {studySets.length === 0 ? (
-            <div className="text-center py-20 opacity-50">
-              <p>Bạn chưa có học phần nào. Hãy tạo một học phần mới để bắt đầu!</p>
+            <div className="text-center py-20 bg-[#1e1445]/40 border-2 border-dashed border-pink-500/25 rounded-3xl p-8 max-w-xl mx-auto">
+              <span className="text-5xl block mb-4">😿</span>
+              <p className="text-pink-200 font-bold text-lg font-bubble">Chưa có học phần phép thuật nào cả Senpai ơi!</p>
+              <p className="text-pink-300/60 text-sm mt-2 mb-6">Hãy bấm nút "Tạo học phần" phía góc để bắt đầu chuyến phiêu lưu tri thức nhé!</p>
+              <button 
+                onClick={() => {
+                  setCurrentSetId(null);
+                  setEditTitle('Học phần mới');
+                  setEditTerms([{ id: Date.now(), term: '', definition: '' }]);
+                  setView('editor');
+                }}
+                className="bg-pink-600 hover:bg-pink-500 text-white px-6 py-2.5 rounded-2xl font-black transition-all border-2 border-pink-400/50 anime-shadow-pink"
+              >
+                Tạo học phần ngay 🌸
+              </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {studySets.map(set => (
-                <div key={set.id} className="bg-[#15162c] border border-white/10 rounded-2xl p-6 hover:border-indigo-500/50 transition-colors group relative flex flex-col">
+                <div key={set.id} className="bg-[#1c143d] border-2 border-pink-500/30 rounded-3xl p-6 hover:border-pink-400 transition-all group relative flex flex-col shadow-xl hover:shadow-pink-500/10 anime-shadow-pink hover:-translate-y-1 duration-300">
+                  {/* Cute anime sticker tags */}
+                  <div className="absolute -top-3 -right-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-[9.5px] font-black uppercase px-2.5 py-1 rounded-xl shadow-md border border-pink-300 z-10 font-mono tracking-wider">
+                    Study Pad 🌸
+                  </div>
+
                   <div className="flex-1">
-                    <h3 className="text-xl font-bold mb-2 group-hover:text-indigo-400 transition-colors">{set.title}</h3>
-                    <p className="text-white/40 text-sm mb-4">{set.questions.length} thuật ngữ</p>
-                    <div className="flex flex-col gap-2">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <h3 className="text-xl md:text-2xl font-extrabold mb-1.5 text-pink-100 group-hover:text-pink-300 transition-colors font-bubble">{set.title}</h3>
+                    <p className="text-pink-300/50 text-xs font-bold mb-5 font-mono flex items-center gap-1">
+                      <span>✨ {set.questions.length} ma thuật thuật ngữ</span>
+                    </p>
+                    <div className="flex flex-col gap-3">
+                      <div className="grid grid-cols-2 gap-2">
                         <button 
                           onClick={() => {
                             setCurrentSetId(set.id);
@@ -1081,9 +1203,9 @@ export default function App() {
                             setPreviousView('quiz');
                             setView('quiz');
                           }}
-                          className="bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white text-xs font-bold py-2 px-0.5 rounded-lg transition-colors border border-indigo-500/30 text-center"
+                          className="bg-purple-600/20 hover:bg-purple-600 text-purple-200 hover:text-white text-xs font-extrabold py-3 px-1 rounded-xl transition-all border-2 border-purple-500/30 text-center hover:scale-[1.03] duration-150 cursor-pointer"
                         >
-                          Trắc nghiệm
+                          Trắc nghiệm ☄️
                         </button>
                         <button 
                           onClick={() => {
@@ -1096,9 +1218,9 @@ export default function App() {
                             setPreviousView('flashcard');
                             setView('flashcard');
                           }}
-                          className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-xs font-bold py-2 px-0.5 rounded-lg transition-colors border border-emerald-500/30 text-center"
+                          className="bg-pink-600/20 hover:bg-pink-600 text-pink-200 hover:text-white text-xs font-extrabold py-3 px-1 rounded-xl transition-all border-2 border-pink-400/30 text-center hover:scale-[1.03] duration-150 cursor-pointer"
                         >
-                          Thẻ ghi nhớ
+                          Thẻ ghi nhớ 🏷️
                         </button>
                         <button 
                           onClick={() => {
@@ -1114,9 +1236,9 @@ export default function App() {
                             setPreviousView('written');
                             setView('written');
                           }}
-                          className="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white text-xs font-bold py-2 px-0.5 rounded-lg transition-colors border border-cyan-500/30 text-center"
+                          className="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-200 hover:text-white text-xs font-extrabold py-3 px-1 rounded-xl transition-all border-2 border-cyan-500/30 text-center hover:scale-[1.03] duration-150 cursor-pointer"
                         >
-                          Tự luận
+                          Tự luận ✏️
                         </button>
                         <button 
                           onClick={() => {
@@ -1132,9 +1254,9 @@ export default function App() {
                             setPreviousView('listening');
                             setView('listening');
                           }}
-                          className="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-xs font-bold py-2 px-0.5 rounded-lg transition-colors border border-rose-500/30 text-center animate-pulse-subtle"
+                          className="bg-rose-600/20 hover:bg-rose-500/30 text-rose-200 hover:text-white text-xs font-extrabold py-3 px-1 rounded-xl transition-all border-2 border-rose-500/30 text-center hover:scale-[1.03] duration-150 cursor-pointer"
                         >
-                          Luyện nghe
+                          Luyện nghe 🎧
                         </button>
                       </div>
                       {set.needsReview && set.needsReview.length > 0 && (
@@ -1153,9 +1275,9 @@ export default function App() {
                             setPreviousView('quiz');
                             setView('quiz');
                           }}
-                          className="w-full bg-orange-600/20 hover:bg-orange-600 text-orange-300 hover:text-white text-sm font-bold py-2 rounded-lg transition-colors border border-orange-500/30"
+                          className="w-full bg-amber-500/20 hover:bg-amber-600 text-amber-200 hover:text-black text-xs font-extrabold py-2 rounded-xl transition-colors border-2 border-amber-400/40 hover:-translate-y-0.5 duration-100"
                         >
-                          Ôn tập {set.needsReview.length} từ sai
+                          🔥 ÔN TẬP {set.needsReview.length} TỪ SAI • GANBARE!
                         </button>
                       )}
                     </div>
@@ -1246,45 +1368,59 @@ export default function App() {
     const definition = currentQuestion.definition;
 
     return (
-      <div className="min-h-screen bg-[#0a0b1e] text-white flex flex-col font-sans">
-        <header className="flex items-center justify-between p-6 border-b border-white/10">
-          <div className="flex items-center gap-4">
+      <div className="min-h-screen bg-[#0d0727] text-white flex flex-col font-sans relative overflow-hidden pb-12">
+        {/* Soft floating sakura petals decorative ornaments */}
+        <div className="absolute top-10 left-10 text-white/5 text-4xl select-none pointer-events-none animate-bounce" style={{ animationDuration: '12s' }}>🌸</div>
+        <div className="absolute bottom-20 right-10 text-white/5 text-5xl select-none pointer-events-none animate-pulse" style={{ animationDuration: '9s' }}>🌸</div>
+
+        <header className="flex flex-col sm:flex-row items-center justify-between p-6 border-b border-pink-500/10 gap-3">
+          <div className="flex items-center gap-3">
             <button 
               onClick={() => setView('dashboard')}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+              className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5 shrink-0" />
             </button>
-            <h1 className="text-xl font-bold">Thẻ ghi nhớ</h1>
+            <h1 className="text-xl font-bold text-pink-300 font-bubble">Thẻ ghi nhớ ma thuật</h1>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-white/40 font-bold">{currentIdx + 1} / {quizQuestions.length}</span>
+            <span className="text-pink-300 font-black px-3 py-1 bg-pink-500/10 rounded-full text-xs font-mono border border-pink-500/20">{currentIdx + 1} / {quizQuestions.length}</span>
             <button 
               onClick={handleShuffleQuiz}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors ml-2"
-              title="Xáo trộn"
+              className="p-2.5 bg-pink-600/20 hover:bg-pink-600 text-pink-300 hover:text-white rounded-xl transition-all cursor-pointer"
+              title="Xáo trộn câu hỏi"
             >
-              <Shuffle className="w-5 h-5 opacity-70" />
+              <Shuffle className="w-5 h-5" />
             </button>
           </div>
         </header>
 
-        <main className="flex-1 flex flex-col items-center justify-center p-6 max-w-3xl mx-auto w-full">
+        <main className="flex-1 flex flex-col items-center justify-center p-6 max-w-2xl mx-auto w-full">
+          
+          <KokoMascot 
+            expression={isFlipped ? "happy" : "smile"}
+            text={
+              isFlipped 
+                ? "Kyaaa! Từ này phát âm là '" + word + "' đó Senpai! " + (pos ? "Nó là một " + pos + " đó nha! " : "") + "Senpai đã nhớ kỹ chưa nào? 🌸💖"
+                : "Uưnn... Cùng đoán xem thuật ngữ tiếng Anh của '" + definition + "' là gì nào! Hãy chạm vào thẻ để Koko lật mở cho Senpai nhé! ⭐"
+            }
+          />
+
           {/* Progress bar */}
-          <div className="w-full max-w-3xl mb-8 flex gap-1 h-2">
+          <div className="w-full max-w-2xl mb-8 flex gap-1 h-3">
             {quizQuestions.map((_, idx) => (
               <div 
                 key={idx} 
                 className={`flex-1 rounded-full transition-colors ${
-                  idx === currentIdx ? 'bg-indigo-500' : 
-                  idx < currentIdx ? 'bg-white/20' : 'bg-white/5'
+                  idx === currentIdx ? 'bg-pink-400' : 
+                  idx < currentIdx ? 'bg-pink-500/30' : 'bg-white/5'
                 }`}
               />
             ))}
           </div>
 
           <div 
-            className="w-full aspect-[3/2] max-h-[400px] [perspective:1000px] cursor-pointer"
+            className="w-full aspect-[3/2] max-h-[350px] [perspective:1000px] cursor-pointer"
             onClick={() => {
               const newFlippedState = !isFlipped;
               setIsFlipped(newFlippedState);
@@ -1299,27 +1435,30 @@ export default function App() {
               transition={{ type: 'tween', duration: 0.3 }}
             >
               {/* Front (Definition) */}
-              <div className="absolute inset-0 [backface-visibility:hidden] bg-[#15162c] border-2 border-white/10 rounded-3xl flex flex-col items-center justify-center p-8 shadow-2xl">
-                <span className="text-white/40 text-sm font-bold uppercase tracking-widest mb-4">Định nghĩa</span>
-                <h2 className="text-3xl font-bold text-center leading-relaxed">{definition}</h2>
-                <div className="absolute bottom-6 text-white/30 text-sm">Nhấn để lật thẻ</div>
+              <div className="absolute inset-0 [backface-visibility:hidden] bg-[#22174c] border-4 border-dashed border-pink-400/40 rounded-3xl flex flex-col items-center justify-center p-8 shadow-2xl relative">
+                <div className="absolute top-4 left-4 text-pink-300/30 text-xs font-bold font-mono tracking-widest">DEFINING MAGIC 🎴</div>
+                <span className="text-pink-300 font-extrabold text-sm uppercase tracking-wider mb-4 font-mono bg-pink-500/10 px-3 py-1 rounded-full border border-pink-500/20">Định nghĩa tiếng Việt</span>
+                <h2 className="text-2xl md:text-3xl font-extrabold text-center leading-relaxed text-pink-100 font-bubble">{definition}</h2>
+                <div className="absolute bottom-6 text-pink-300/50 text-xs font-black uppercase tracking-widest animate-pulse">🌸 Click hoặc SPACE để lật thẻ 🌸</div>
               </div>
 
               {/* Back (Word) */}
-              <div className="absolute inset-0 [backface-visibility:hidden] bg-indigo-600 border-2 border-indigo-500 rounded-3xl flex flex-col items-center justify-center p-8 shadow-2xl [transform:rotateX(180deg)]">
-                <span className="text-white/60 text-sm font-bold uppercase tracking-widest mb-4">Thuật ngữ</span>
-                <h2 className="text-5xl font-bold text-center">{word}</h2>
-                {pos && <span className="text-indigo-200 font-medium mt-4 text-xl">({pos})</span>}
+              <div className="absolute inset-0 [backface-visibility:hidden] bg-[#1e1445] border-4 border-solid border-pink-500 rounded-3xl flex flex-col items-center justify-center p-8 shadow-2xl [transform:rotateX(180deg)] relative anime-shadow-pink">
+                <div className="absolute top-4 left-4 text-cyan-300/30 text-xs font-bold font-mono tracking-widest font-bubble">SPELL COMPLETED 💫</div>
+                <span className="text-cyan-300 font-extrabold text-sm uppercase tracking-wider mb-4 font-mono bg-cyan-500/15 px-3 py-1 rounded-full border border-cyan-500/20">Thuật ngữ tiếng Anh</span>
+                <h2 className="text-3xl md:text-5.5xl font-black text-center text-white font-bubble tracking-wide">{word}</h2>
+                {pos && <span className="text-pink-300 font-extrabold mt-4 text-sm bg-pink-500/20 px-3.5 py-1 rounded-full border border-pink-500/20">({pos})</span>}
+                
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
                     speak(word);
                   }}
-                  className="absolute top-6 right-6 p-3 hover:bg-white/10 rounded-full transition-colors"
+                  className="absolute top-4 right-4 p-3 bg-pink-500/20 hover:bg-pink-500 hover:scale-110 active:scale-95 text-white rounded-full transition-all border border-pink-400"
                 >
-                  <Volume2 className="w-6 h-6 text-white/80" />
+                  <Volume2 className="w-5 h-5 text-pink-100" />
                 </button>
-                <div className="absolute bottom-6 text-white/60 text-sm">Nhấn để lật thẻ</div>
+                <div className="absolute bottom-6 text-pink-300/50 text-xs font-black uppercase tracking-widest">🌸 Click để lật lại 🌸</div>
               </div>
             </motion.div>
           </div>
@@ -1327,15 +1466,15 @@ export default function App() {
           <div className="flex items-center gap-6 mt-12 w-full max-w-sm mx-auto justify-center">
             <button 
               onClick={() => handleMarkFlashcard(false)}
-              className="flex-1 py-6 bg-[#2a2b4a] hover:bg-[#3a3b5a] rounded-full transition-colors flex justify-center items-center"
+              className="flex-1 py-4 bg-rose-500 hover:bg-rose-400 text-white rounded-2xl transition-all flex justify-center items-center shadow-lg border-2 border-rose-300 font-mono font-black cursor-pointer anime-shadow-pink hover:-translate-y-0.5 text-xs uppercase"
             >
-              <X className="w-10 h-10 text-[#e65c2c]" strokeWidth={3} />
+              <span className="mr-2">X</span> Luyện lại 😢
             </button>
             <button 
               onClick={() => handleMarkFlashcard(true)}
-              className="flex-1 py-6 bg-[#2a2b4a] hover:bg-[#3a3b5a] rounded-full transition-colors flex justify-center items-center"
+              className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl transition-all flex justify-center items-center shadow-lg border-2 border-emerald-300 font-mono font-black cursor-pointer anime-shadow-emerald hover:-translate-y-0.5 text-xs uppercase"
             >
-              <Check className="w-10 h-10 text-[#22c55e]" strokeWidth={3} />
+              <span className="mr-2">✓</span> Đã thuộc 🌸
             </button>
           </div>
         </main>
@@ -1351,41 +1490,60 @@ export default function App() {
     const definition = q?.definition || '';
 
     return (
-      <div className="min-h-screen bg-[#0a0b1e] text-white flex flex-col font-sans">
-        <header className="flex items-center justify-between p-6 border-b border-white/10">
-          <div className="flex items-center gap-4">
+      <div className="min-h-screen bg-[#0d0727] text-white flex flex-col font-sans relative overflow-hidden pb-12">
+        {/* Soft floating sakura petals decorative ornaments */}
+        <div className="absolute top-10 left-10 text-white/5 text-4xl select-none pointer-events-none animate-bounce" style={{ animationDuration: '10s' }}>🌸</div>
+        <div className="absolute bottom-20 right-10 text-white/5 text-5xl select-none pointer-events-none animate-pulse" style={{ animationDuration: '8s' }}>🌸</div>
+
+        <header className="flex flex-col sm:flex-row items-center justify-between p-6 border-b border-pink-500/10 gap-3">
+          <div className="flex items-center gap-3">
             <button 
               onClick={() => setView('dashboard')}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+              className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5 shrink-0" />
             </button>
-            <h1 className="text-xl font-bold">Chế độ tự luận</h1>
+            <h1 className="text-xl font-bold text-pink-300 font-bubble">Chế độ tự luận ma thuật</h1>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-white/40 font-bold">{currentIdx + 1} / {quizQuestions.length}</span>
+            <span className="text-pink-300 font-black px-3 py-1 bg-pink-500/10 rounded-full text-xs font-mono border border-pink-500/20">{currentIdx + 1} / {quizQuestions.length}</span>
             <button 
               onClick={handleShuffleQuiz}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors ml-2"
+              className="p-2.5 bg-pink-600/20 hover:bg-pink-600 text-pink-300 hover:text-white rounded-xl transition-all cursor-pointer"
               title="Xáo trộn câu hỏi"
             >
-              <Shuffle className="w-5 h-5 opacity-70" />
+              <Shuffle className="w-5 h-5" />
             </button>
           </div>
         </header>
 
         <main className="flex-1 flex flex-col items-center justify-center p-6 max-w-2xl mx-auto w-full">
+          
+          <KokoMascot 
+            expression={
+              !showWrittenFeedback ? 'smile' :
+              isWrittenCorrect ? 'happy' : 'sad'
+            }
+            text={
+              !showWrittenFeedback 
+                ? "Senpai ơi! Hãy nhập thuật ngữ tiếng Anh tương ứng với định nghĩa '" + definition + "' nhé! Koko đang ngóng chờ bài làm của Senpai nè! ✏️✨"
+                : isWrittenCorrect
+                  ? "Woaaaa! Tuyệt vời ông mặt trời luôn Senpai! Hấp thu ma thuật '" + word + "' thành công mỹ mãn! 💕🎉"
+                  : "Ưnn... Chần chừ một xíu rồi. Đáp án chính xác là '" + word + "' nha Senpai! Viết lại một lần để ghi nhớ sâu sắc nhé! 🌸"
+            }
+          />
+
           {/* Progress bar */}
-          <div className="w-full max-w-2xl mb-8 flex gap-1 h-2">
+          <div className="w-full max-w-2xl mb-8 flex gap-1 h-3">
             {quizQuestions.map((_, idx) => {
               const status = questionStatus[idx];
-              let colorClasses = 'bg-white/5';
+              let colorClasses = 'bg-white/5 border border-white/5';
               if (status === 'correct') {
-                colorClasses = 'bg-emerald-500';
+                colorClasses = 'bg-emerald-400';
               } else if (status === 'incorrect') {
-                colorClasses = 'bg-red-500';
+                colorClasses = 'bg-rose-500';
               } else if (idx === currentIdx) {
-                colorClasses = 'bg-indigo-500';
+                colorClasses = 'bg-pink-400';
               }
               return (
                 <div 
@@ -1397,9 +1555,12 @@ export default function App() {
           </div>
 
           {/* Flashcard containing prompt */}
-          <div className="w-full bg-[#15162c] border border-white/10 rounded-3xl flex flex-col p-8 md:p-12 shadow-2xl relative">
-            <span className="text-white/40 text-xs font-bold uppercase tracking-widest mb-4">Định nghĩa / Nghĩa tiếng Việt</span>
-            <h2 className="text-2xl md:text-3xl font-bold mb-8 leading-relaxed text-indigo-100">{definition}</h2>
+          <div className="w-full bg-[#1c143d] border-2 border-pink-500/30 rounded-3xl flex flex-col p-6 md:p-10 shadow-2xl relative anime-shadow-pink">
+            <div className="absolute top-3 right-4 text-[10px] bg-pink-500/20 text-pink-300 font-extrabold px-3 py-0.5 rounded-full border border-pink-500/25 uppercase font-mono tracking-wider font-bubble">
+              Spell Book 📖
+            </div>
+            <span className="text-pink-300/50 text-xs font-bold uppercase tracking-widest mb-3 block">Nghĩa tiếng Việt</span>
+            <h2 className="text-2xl md:text-3xl font-extrabold mb-8 leading-relaxed text-pink-100 font-bubble">{definition}</h2>
 
             <form onSubmit={handleSubmitWritten} className="space-y-4">
               <div className="relative">
@@ -1408,12 +1569,12 @@ export default function App() {
                   value={writtenAnswer}
                   onChange={(e) => setWrittenAnswer(e.target.value)}
                   placeholder="Nhập từ vựng tiếng Anh tương ứng..."
-                  className={`w-full bg-[#0a0b1e] border-2 rounded-2xl px-6 py-4 text-xl font-bold text-center focus:outline-none focus:ring-4 focus:ring-indigo-500/20 transition-all ${
+                  className={`w-full bg-[#0d0727] border-2 rounded-2xl px-6 py-4 text-lg font-extrabold text-center focus:outline-none focus:ring-4 focus:ring-pink-500/20 transition-all font-bubble ${
                     showWrittenFeedback 
                       ? isWrittenCorrect 
                         ? 'border-emerald-500 text-emerald-400' 
-                        : 'border-red-500 text-red-400'
-                      : 'border-white/15 focus:border-indigo-500'
+                        : 'border-rose-500 text-rose-400'
+                      : 'border-pink-500/20 focus:border-pink-400 text-white'
                   }`}
                   disabled={showWrittenFeedback}
                   autoFocus
@@ -1441,25 +1602,25 @@ export default function App() {
                           return [...prev, q];
                         });
                       }}
-                      className="px-6 py-3.5 bg-white/5 hover:bg-white/10 rounded-xl font-semibold text-sm transition-all border border-white/10 text-white/70"
+                      className="px-6 py-3 bg-[#1e1346] hover:bg-[#281d54] rounded-2xl font-black text-xs uppercase tracking-wider text-pink-300 border border-pink-500/30 transition-all cursor-pointer"
                     >
-                      Bỏ qua
+                      Bỏ qua 🌟
                     </button>
                     <button 
                       type="submit"
                       disabled={!writtenAnswer.trim()}
-                      className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:bg-indigo-600/50 rounded-xl font-bold text-sm transition-all text-white shadow-lg shadow-indigo-600/15 cursor-pointer"
+                      className="px-8 py-3 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:hover:bg-pink-600 rounded-2xl font-black text-xs uppercase tracking-wider transition-all text-white shadow-lg anime-shadow-pink cursor-pointer border-2 border-pink-400/50"
                     >
-                      Kiểm tra
+                      Kiểm tra ☄️
                     </button>
                   </>
                 ) : (
                   <button 
                     type="button"
                     onClick={handleNextWritten}
-                    className="px-10 py-3.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-sm transition-all text-white shadow-lg shadow-indigo-500/25 cursor-pointer"
+                    className="px-10 py-3 bg-pink-600 hover:bg-pink-500 rounded-2xl font-black text-xs uppercase tracking-wider transition-all text-white shadow-lg anime-shadow-pink cursor-pointer border-2 border-pink-400/50"
                   >
-                    {currentIdx < quizQuestions.length - 1 ? 'Tiếp theo' : 'Xem kết quả'}
+                    {currentIdx < quizQuestions.length - 1 ? 'Tiếp theo 🌸' : 'Xem kết quả ✨'}
                   </button>
                 )}
               </div>
@@ -1473,38 +1634,40 @@ export default function App() {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 15 }}
-                className={`w-full mt-6 p-5 rounded-2xl border ${
+                className={`w-full mt-6 p-5 rounded-3xl border-2 ${
                   isWrittenCorrect 
-                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                    : 'bg-red-500/10 border-red-500/20 text-red-400'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 anime-shadow-emerald' 
+                    : 'bg-red-500/10 border-rose-500/30 text-rose-300 anime-shadow-pink'
                 }`}
               >
                 <div className="flex items-start gap-4">
-                  <div className="pt-0.5">
+                  <div className="pt-1 shrink-0">
                     {isWrittenCorrect ? (
                       <CheckCircle2 className="w-6 h-6 text-emerald-400" />
                     ) : (
-                      <XCircle className="w-6 h-6 text-red-400" />
+                      <XCircle className="w-6 h-6 text-rose-400" />
                     )}
                   </div>
                   <div className="flex-1">
-                    <p className="font-bold text-lg mb-1">
-                      {isWrittenCorrect ? 'Hoàn toàn chính xác!' : 'Chưa đúng rồi'}
+                    <p className="font-extrabold text-lg mb-1 font-bubble">
+                      {isWrittenCorrect ? 'Hoàn toàn chính xác! ✨' : 'Chưa đúng rồi Senpai...'}
                     </p>
-                    <p className="text-white/80 text-sm leading-relaxed">
+                    <p className="text-pink-100/80 text-sm leading-relaxed font-bubble">
                       Đáp án đúng:{' '}
-                      <strong className="text-white text-base underline decoration-indigo-400 decoration-2 underline-offset-2">
+                      <strong className="text-white text-lg font-bubble underline decoration-pink-500 decoration-2 underline-offset-2">
                         {word}
                       </strong>{' '}
-                      {pos && <span className="text-white/40 text-xs">({pos})</span>}
+                      {pos && <span className="text-pink-300/60 text-xs">({pos})</span>}
                     </p>
                   </div>
                   <button 
                     onClick={() => speak(word)}
-                    className="p-3 bg-white/5 hover:bg-white/10 rounded-full transition-colors shrink-0"
+                    type="button"
+                    className="p-3 bg-[#1e1346] hover:bg-[#281d54] border border-pink-500/20 text-pink-300 hover:text-pink-200 rounded-full transition-all shrink-0 cursor-pointer"
                     title="Nghe phát âm"
                   >
-                    <Volume2 className="w-5 h-5 text-indigo-300" />
+                    <Volume2 className="w-5 h-5 hidden" /> {/* Hidden here since styled elsewhere */}
+                    <span className="text-xs font-mono">🔈 REPLAY</span>
                   </button>
                 </div>
               </motion.div>
@@ -1523,41 +1686,60 @@ export default function App() {
     const definition = q?.definition || '';
 
     return (
-      <div className="min-h-screen bg-[#0a0b1e] text-white flex flex-col font-sans">
-        <header className="flex items-center justify-between p-6 border-b border-white/10">
-          <div className="flex items-center gap-4">
+      <div className="min-h-screen bg-[#0d0727] text-white flex flex-col font-sans relative overflow-hidden pb-12">
+        {/* Soft floating sakura petals decorative ornaments */}
+        <div className="absolute top-10 left-10 text-white/5 text-4xl select-none pointer-events-none animate-bounce" style={{ animationDuration: '10s' }}>🌸</div>
+        <div className="absolute bottom-20 right-10 text-white/5 text-5xl select-none pointer-events-none animate-pulse" style={{ animationDuration: '8s' }}>🌸</div>
+
+        <header className="flex flex-col sm:flex-row items-center justify-between p-6 border-b border-pink-500/10 gap-3">
+          <div className="flex items-center gap-3">
             <button 
               onClick={() => setView('dashboard')}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+              className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5 shrink-0" />
             </button>
-            <h1 className="text-xl font-bold">Chế độ luyện nghe</h1>
+            <h1 className="text-xl font-bold text-pink-300 font-bubble">Chế độ luyện nghe ma thuật</h1>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-white/40 font-bold">{currentIdx + 1} / {quizQuestions.length}</span>
+            <span className="text-pink-300 font-black px-3 py-1 bg-pink-500/10 rounded-full text-xs font-mono border border-pink-500/20">{currentIdx + 1} / {quizQuestions.length}</span>
             <button 
               onClick={handleShuffleQuiz}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors ml-2"
+              className="p-2.5 bg-pink-600/20 hover:bg-pink-600 text-pink-300 hover:text-white rounded-xl transition-all cursor-pointer"
               title="Xáo trộn câu hỏi"
             >
-              <Shuffle className="w-5 h-5 opacity-70" />
+              <Shuffle className="w-5 h-5" />
             </button>
           </div>
         </header>
 
         <main className="flex-1 flex flex-col items-center justify-center p-6 max-w-2xl mx-auto w-full">
+          
+          <KokoMascot 
+            expression={
+              !showListeningFeedback ? 'smile' :
+              isListeningCorrect ? 'happy' : 'sad'
+            }
+            text={
+              !showListeningFeedback 
+                ? "Koko vừa đọc một thần chú tiếng Anh đó! Senpai nghe thấy thuật ngữ gì nào? Hãy điền vào ô bên dưới nha! Tai Senpai chắc chắn rất thính đó! 🎧💖"
+                : isListeningCorrect
+                  ? "Kyaaa! Tai Senpai thính xuất thần quá đi thui! Chúc mừng Senpai đã gõ chuẩn đồi! ✨🏵️"
+                  : "Oaaiii... Hơi lệch một xíu rùi! Đáp án viết là '" + word + "' nha Senpai! Koko tin lần sau Senpai sẽ gõ đúng mờ! 💕"
+            }
+          />
+
           {/* Progress bar */}
-          <div className="w-full max-w-2xl mb-8 flex gap-1 h-2">
+          <div className="w-full max-w-2xl mb-8 flex gap-1 h-3">
             {quizQuestions.map((_, idx) => {
               const status = questionStatus[idx];
-              let colorClasses = 'bg-white/5';
+              let colorClasses = 'bg-white/5 border border-white/5';
               if (status === 'correct') {
-                colorClasses = 'bg-emerald-500';
+                colorClasses = 'bg-emerald-400';
               } else if (status === 'incorrect') {
-                colorClasses = 'bg-red-500';
-              } else if (idx === currentIdx) {
                 colorClasses = 'bg-rose-500';
+              } else if (idx === currentIdx) {
+                colorClasses = 'bg-pink-400';
               }
               return (
                 <div 
@@ -1569,17 +1751,17 @@ export default function App() {
           </div>
 
           {/* Audio Practice Card */}
-          <div className="w-full bg-[#15162c] border border-white/10 rounded-3xl flex flex-col items-center p-8 md:p-12 shadow-2xl relative">
-            <span className="text-white/40 text-xs font-bold uppercase tracking-widest mb-6 block text-center">Bấm nút để nghe phát âm</span>
+          <div className="w-full bg-[#1c143d] border-2 border-pink-500/30 rounded-3xl flex flex-col items-center p-6 md:p-10 shadow-2xl relative anime-shadow-pink">
+            <span className="text-pink-300/65 text-xs font-bold uppercase tracking-widest mb-6 block text-center font-bubble">Bấm nút quả cầu để nghe ma pháp âm</span>
             
             {/* Animated Audio Pulsing Button */}
             <button 
               onClick={() => speak(word)}
               type="button"
-              className="w-28 h-28 bg-rose-600/10 hover:bg-rose-600/20 active:scale-95 text-rose-400 hover:text-rose-300 rounded-full flex items-center justify-center transition-all border border-rose-500/25 shadow-lg shadow-rose-500/5 mb-8 relative group"
+              className="w-24 h-24 bg-pink-500/15 hover:bg-pink-500/30 active:scale-95 text-pink-400 hover:text-pink-300 rounded-full flex items-center justify-center transition-all border-4 border-pink-500/50 shadow-lg shadow-pink-500/20 mb-8 relative group cursor-pointer"
             >
-              <span className="absolute inset-0 rounded-full bg-rose-600/5 group-hover:scale-110 transition-transform duration-300" />
-              <Volume2 className="w-12 h-12 text-rose-400 relative z-10" />
+              <div className="absolute inset-0 rounded-full bg-pink-500/10 animate-ping" style={{ animationDuration: '2s' }} />
+              <Volume2 className="w-10 h-10 text-pink-300 relative z-10 group-hover:scale-110 transition-transform" />
             </button>
 
             <form onSubmit={handleSubmitListening} className="space-y-4 w-full">
@@ -1588,13 +1770,13 @@ export default function App() {
                   type="text" 
                   value={listeningAnswer}
                   onChange={(e) => setListeningAnswer(e.target.value)}
-                  placeholder="Nghe và gõ lại từ vựng..."
-                  className={`w-full bg-[#0a0b1e] border-2 rounded-2xl px-6 py-4 text-xl font-bold text-center focus:outline-none focus:ring-4 focus:ring-rose-500/20 transition-all ${
+                  placeholder="Điền từ vựng tiếng Anh nghe được..."
+                  className={`w-full bg-[#0d0727] border-2 rounded-2xl px-6 py-4 text-lg font-extrabold text-center focus:outline-none focus:ring-4 focus:ring-pink-500/20 transition-all font-bubble ${
                     showListeningFeedback 
                       ? isListeningCorrect 
                         ? 'border-emerald-500 text-emerald-400' 
-                        : 'border-red-500 text-red-400'
-                      : 'border-white/15 focus:border-rose-500'
+                        : 'border-rose-500 text-rose-400'
+                      : 'border-pink-500/20 focus:border-pink-400 text-white'
                   }`}
                   disabled={showListeningFeedback}
                   autoFocus
@@ -1622,25 +1804,25 @@ export default function App() {
                           return [...prev, q];
                         });
                       }}
-                      className="px-6 py-3.5 bg-white/5 hover:bg-white/10 rounded-xl font-semibold text-sm transition-all border border-white/10 text-white/70"
+                      className="px-6 py-3 bg-[#1e1346] hover:bg-[#281d54] rounded-2xl font-black text-xs uppercase tracking-wider text-pink-300 border border-pink-500/30 transition-all cursor-pointer"
                     >
-                      Bỏ qua
+                      Bỏ qua 🌟
                     </button>
                     <button 
                       type="submit"
                       disabled={!listeningAnswer.trim()}
-                      className="px-8 py-3.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 disabled:bg-rose-600/50 rounded-xl font-bold text-sm transition-all text-white shadow-lg shadow-rose-600/15 cursor-pointer"
+                      className="px-8 py-3 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:hover:bg-pink-600 rounded-2xl font-black text-xs uppercase tracking-wider transition-all text-white shadow-lg anime-shadow-pink cursor-pointer border-2 border-pink-400/50"
                     >
-                      Kiểm tra
+                      Kiểm tra ☄️
                     </button>
                   </>
                 ) : (
                   <button 
                     type="button"
                     onClick={handleNextListening}
-                    className="px-10 py-3.5 bg-rose-600 hover:bg-rose-500 rounded-xl font-bold text-sm transition-all text-white shadow-lg shadow-rose-500/25 cursor-pointer"
+                    className="px-10 py-3 bg-pink-600 hover:bg-pink-500 rounded-2xl font-black text-xs uppercase tracking-wider transition-all text-white shadow-lg anime-shadow-pink cursor-pointer border-2 border-pink-400/50"
                   >
-                    {currentIdx < quizQuestions.length - 1 ? 'Tiếp theo' : 'Xem kết quả'}
+                    {currentIdx < quizQuestions.length - 1 ? 'Tiếp hèo 🌸' : 'Xem kết quả ✨'}
                   </button>
                 )}
               </div>
@@ -1654,42 +1836,43 @@ export default function App() {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 15 }}
-                className={`w-full mt-6 p-5 rounded-2xl border ${
+                className={`w-full mt-6 p-5 rounded-3xl border-2 ${
                   isListeningCorrect 
-                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                    : 'bg-red-500/10 border-red-500/20 text-red-400'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 anime-shadow-emerald' 
+                    : 'bg-red-500/10 border-rose-500/30 text-rose-300 anime-shadow-pink'
                 }`}
               >
                 <div className="flex items-start gap-4">
-                  <div className="pt-0.5">
+                  <div className="pt-1 shrink-0">
                     {isListeningCorrect ? (
                       <CheckCircle2 className="w-6 h-6 text-emerald-400" />
                     ) : (
-                      <XCircle className="w-6 h-6 text-red-400" />
+                      <XCircle className="w-6 h-6 text-rose-400" />
                     )}
                   </div>
                   <div className="flex-1">
-                    <p className="font-bold text-lg mb-1">
-                      {isListeningCorrect ? 'Hoàn toàn chính xác!' : 'Chưa đúng rồi'}
+                    <p className="font-extrabold text-lg mb-1 font-bubble">
+                      {isListeningCorrect ? 'Hoàn toàn chính xác! ✨' : 'Chưa đúng rồi Senpai...'}
                     </p>
-                    <p className="text-white/80 text-sm leading-relaxed mb-2">
+                    <p className="text-pink-100/80 text-sm leading-relaxed mb-2 font-mono">
                       Từ vựng:{' '}
-                      <strong className="text-white text-base underline decoration-rose-450 decoration-2 underline-offset-2">
+                      <strong className="text-white text-lg font-bubble underline decoration-pink-500 decoration-2 underline-offset-2">
                         {word}
                       </strong>{' '}
-                      {pos && <span className="text-white/40 text-xs">({pos})</span>}
+                      {pos && <span className="text-pink-300/60 text-xs">({pos})</span>}
                     </p>
-                    <div className="text-white/60 text-xs border-t border-white/5 pt-2 mt-2">
-                      <span className="font-bold text-white/40 uppercase block mb-1">Định nghĩa / Nghĩa:</span>
-                      <p className="text-white/90 text-sm leading-relaxed">{definition}</p>
+                    <div className="text-pink-300/40 text-xs border-t border-pink-500/10 pt-2 mt-2 font-bubble">
+                      <span className="font-bold text-pink-300/60 uppercase block mb-1">Ý nghĩa tiếng Việt:</span>
+                      <p className="text-pink-100 text-sm leading-relaxed">{definition}</p>
                     </div>
                   </div>
                   <button 
                     onClick={() => speak(word)}
-                    className="p-3 bg-white/5 hover:bg-white/10 rounded-full transition-colors shrink-0"
-                    title="Nghe phát âm"
+                    type="button"
+                    className="p-3 bg-[#1e1346] hover:bg-[#281d54] border border-pink-500/20 text-pink-300 hover:text-pink-200 rounded-full transition-all shrink-0 cursor-pointer"
+                    title="Nghe lại phát âm"
                   >
-                    <Volume2 className="w-5 h-5 text-rose-300" />
+                    <Volume2 className="w-5 h-5" />
                   </button>
                 </div>
               </motion.div>
@@ -1702,58 +1885,82 @@ export default function App() {
 
   if (view === 'summary') {
     return (
-      <div className="min-h-screen bg-[#0a0b1e] text-white flex flex-col font-sans p-6">
-        <div className="max-w-2xl mx-auto w-full mt-12 space-y-8">
+      <div className="min-h-screen bg-[#0d0727] text-white flex flex-col font-sans relative overflow-hidden p-6 pb-20">
+        {/* Soft floating sakura petals decorative ornaments */}
+        <div className="absolute top-10 left-10 text-white/5 text-4xl select-none pointer-events-none animate-bounce" style={{ animationDuration: '10s' }}>🌸</div>
+        <div className="absolute bottom-20 right-10 text-white/5 text-5xl select-none pointer-events-none animate-pulse" style={{ animationDuration: '8s' }}>🌸</div>
+
+        <div className="max-w-2xl mx-auto w-full mt-8 space-y-8 relative">
           <div className="text-center space-y-4">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-indigo-500/20 text-indigo-400 mb-4">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-pink-500/20 text-pink-400 mb-2 border-2 border-pink-400/30 anime-shadow-pink animate-bounce">
               <CheckCircle2 className="w-10 h-10" />
             </div>
-            <h1 className="text-4xl font-bold">Hoàn thành!</h1>
-            <p className="text-white/60">Bạn đã hoàn thành tất cả các câu hỏi trong bộ từ vựng này.</p>
+            <h1 className="text-3xl md:text-4xl font-extrabold text-pink-300 font-bubble">Chinh Phục Thành Công!</h1>
+            <p className="text-pink-200/75 text-sm md:text-base font-bubble">Senpai đã hoàn thành kỳ thi ma thuật của bộ từ vựng này rồi đó!</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-[#15162c] p-6 rounded-2xl border border-white/10 text-center">
-              <div className="text-3xl font-bold text-emerald-400">{quizQuestions.length - wrongQuestions.length}</div>
-              <div className="text-xs font-bold text-white/40 uppercase mt-1">Chính xác</div>
+          <KokoMascot 
+            expression={wrongQuestions.length === 0 ? "happy" : "smile"}
+            text={
+              wrongQuestions.length === 0
+                ? "Sugoooi! Senpai đạt điểm tuyệt đối luôn kìa! Koko bái phục kỹ năng ghi nhớ siêu đẳng của Senpai nhaaa! 🏆💖✨ Koko thương Senpai nhất!"
+                : "Uưnn... Hoàn thành xuất sắc rồi Senpai ơi! Đúng được " + (quizQuestions.length - wrongQuestions.length) + "/" + quizQuestions.length + " từ cơ dợ! Hãy cùng Koko luyện tập lại các từ chưa thuộc nha! 💕🌻"
+            }
+          />
+
+          <div className="grid grid-cols-2 gap-4 font-bubble">
+            <div className="bg-[#1c143d] p-6 rounded-3xl border-2 border-pink-500/20 text-center anime-shadow-emerald">
+              <div className="text-4xl font-black text-emerald-400">{quizQuestions.length - wrongQuestions.length}</div>
+              <div className="text-xs font-bold text-pink-300/60 uppercase mt-1">Học thuộc 🌸</div>
             </div>
-            <div className="bg-[#15162c] p-6 rounded-2xl border border-white/10 text-center">
-              <div className="text-3xl font-bold text-red-400">{wrongQuestions.length}</div>
-              <div className="text-xs font-bold text-white/40 uppercase mt-1">Cần luyện lại</div>
+            <div className="bg-[#1c143d] p-6 rounded-3xl border-2 border-pink-500/20 text-center anime-shadow-pink">
+              <div className="text-4xl font-black text-rose-400">{wrongQuestions.length}</div>
+              <div className="text-xs font-bold text-pink-300/60 uppercase mt-1">Cần luyện lại 😢</div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 pt-4 pb-4">
+          <div className="flex flex-col gap-3.5 pt-2">
             {wrongQuestions.length > 0 && (
               <button 
                 onClick={handleReviewWrong}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-indigo-500/20"
+                className="w-full bg-pink-600 hover:bg-pink-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg anime-shadow-pink border-2 border-pink-400/50 cursor-pointer text-xs uppercase tracking-wider font-mono"
               >
-                Luyện lại các từ sai ({wrongQuestions.length})
+                Luyện lại từ lỗi sai ({wrongQuestions.length}) 🌟
               </button>
             )}
             <button 
               onClick={handleRestart}
-              className="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-2xl transition-all border border-white/10"
+              className="w-full bg-[#1c143d] hover:bg-[#281d54] text-pink-300 font-black py-4 rounded-2xl transition-all border-2 border-pink-500/30 cursor-pointer text-xs uppercase tracking-wider font-mono hover:text-white"
             >
-              Học lại từ đầu
+              Học lại từ đầu 🔄
             </button>
           </div>
 
           {wrongQuestions.length > 0 && (
             <div className="space-y-4">
-              <h2 className="text-lg font-bold">Danh sách từ cần luyện lại:</h2>
-              <div className="space-y-2">
+              <h2 className="text-lg font-bold text-pink-300 font-bubble">Sổ tay sửa lỗi ma thuật 📓:</h2>
+              <div className="space-y-3">
                 {wrongQuestions.map((q) => {
                   const correctOption = q.options.find(o => o.id === q.correctId);
                   return (
-                    <div key={q.id} className="bg-[#1a1b3a] p-4 rounded-xl border border-white/5 flex items-center justify-between">
-                      <div>
-                        <div className="font-bold text-lg">{correctOption?.text} <span className="text-white/40 text-sm">({correctOption?.partOfSpeech})</span></div>
-                        <div className="text-white/60 text-sm">{q.definition}</div>
+                    <div key={q.id} className="bg-[#1c143d] p-5 rounded-2xl border-2 border-pink-500/10 flex items-center justify-between">
+                      <div className="space-y-1">
+                        <div className="font-bold text-lg text-pink-100 font-bubble">
+                          {correctOption?.text}{' '}
+                          {correctOption?.partOfSpeech && (
+                            <span className="text-pink-300/60 text-xs bg-pink-500/10 px-2.5 py-0.5 rounded-full border border-pink-500/20">
+                              {correctOption?.partOfSpeech}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-pink-200/70 text-sm font-bubble">{q.definition}</div>
                       </div>
-                      <button onClick={() => speak(correctOption?.text || '')} className="p-2 hover:bg-white/5 rounded-full transition-colors">
-                        <Volume2 className="w-5 h-5 text-white/40" />
+                      <button 
+                        onClick={() => speak(correctOption?.text || '')} 
+                        className="p-3 bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 text-pink-300 rounded-full transition-all cursor-pointer"
+                        title="Nghe phát âm"
+                      >
+                        <Volume2 className="w-5 h-5" />
                       </button>
                     </div>
                   );
@@ -1762,18 +1969,18 @@ export default function App() {
             </div>
           )}
 
-          <div className="flex flex-col gap-3 pt-4 border-t border-white/10">
+          <div className="flex flex-col gap-3 pt-6 border-t border-pink-500/10 font-bubble">
             <button 
               onClick={() => setView('editor')}
-              className="w-full text-indigo-400 font-bold py-2 hover:text-indigo-300 transition-colors"
+              className="w-full text-pink-400 font-extrabold py-2 hover:text-pink-300 transition-colors text-center text-sm cursor-pointer"
             >
-              Chỉnh sửa bộ từ vựng
+              Chỉnh sửa bộ từ vựng ⚙️
             </button>
             <button 
               onClick={() => setView('dashboard')}
-              className="w-full text-white/40 font-bold py-2 hover:text-white/60 transition-colors"
+              className="w-full text-pink-300/40 font-extrabold py-2 hover:text-pink-300/70 transition-colors text-center text-sm cursor-pointer"
             >
-              Về thư viện
+              Về thư viện 🌸
             </button>
           </div>
         </div>
@@ -1783,7 +1990,11 @@ export default function App() {
 
   if (view === 'editor') {
     return (
-      <div className="min-h-screen bg-[#0a0b1e] text-white flex flex-col font-sans">
+      <div className="min-h-screen bg-[#0d0727] text-white flex flex-col font-sans relative overflow-hidden pb-12">
+        {/* Soft floating sakura petals decorative ornaments */}
+        <div className="absolute top-10 left-10 text-white/5 text-4xl select-none pointer-events-none animate-bounce" style={{ animationDuration: '10s' }}>🌸</div>
+        <div className="absolute bottom-20 right-10 text-white/5 text-5xl select-none pointer-events-none animate-pulse" style={{ animationDuration: '8s' }}>🌸</div>
+
         <input 
           type="file" 
           id="file-import" 
@@ -1791,172 +2002,124 @@ export default function App() {
           accept=".txt,.csv,.xlsx,.xls" 
           onChange={handleFileUpload}
         />
+        
         {/* Editor Top Header */}
-        <header className="flex items-center justify-between px-6 py-3 border-b border-white/5">
-          <div className="flex items-center gap-4 flex-1">
-            <div className="p-2 hover:bg-white/5 rounded-lg cursor-pointer">
-              <div className="w-5 h-1 bg-white/60 mb-1 rounded-full" />
-              <div className="w-5 h-1 bg-white/60 mb-1 rounded-full" />
-              <div className="w-5 h-1 bg-white/60 rounded-full" />
-            </div>
-            <div className="relative flex-1 max-w-xl">
-              <input 
-                type="text" 
-                placeholder="Tính năng tìm kiếm nay còn nhanh hơn"
-                className="w-full bg-[#1a1b3a] border-none rounded-lg px-10 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
-              />
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40">
-                <Settings className="w-4 h-4" />
-              </div>
-            </div>
-          </div>
+        <header className="flex flex-col sm:flex-row items-center justify-between p-6 border-b border-pink-500/10 gap-3">
           <div className="flex items-center gap-3">
-            <button className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center hover:bg-indigo-500">
-              <Plus className="w-5 h-5" />
+            <button 
+              onClick={() => setView('dashboard')}
+              className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5 shrink-0" />
             </button>
-            <button className="bg-brand-accent text-black px-4 py-1.5 rounded-lg text-sm font-bold">
-              Nâng cấp
+            <h1 className="text-xl font-bold text-pink-300 font-bubble">Biên soạn ma pháp thuật</h1>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <button 
+              onClick={handleSaveEditor}
+              className="px-6 py-2.5 bg-pink-600 hover:bg-pink-500 rounded-2xl font-black text-xs uppercase tracking-wider transition-all text-white shadow-lg anime-shadow-pink cursor-pointer border-2 border-pink-400/50"
+            >
+              Lưu học phần ✨
             </button>
-            <div className="w-8 h-8 bg-cyan-500 rounded-full flex items-center justify-center font-bold text-sm">
-              Y
-            </div>
           </div>
         </header>
 
-        {/* Editor Sub Header */}
-        <div className="px-6 py-6 flex items-center justify-between max-w-5xl mx-auto w-full">
-          <button 
-            onClick={() => setView(currentSetId ? 'quiz' : 'dashboard')}
-            className="flex items-center gap-2 text-indigo-400 font-bold hover:text-indigo-300"
-          >
-            <ChevronDown className="w-5 h-5 rotate-90" />
-            {currentSetId ? 'Trở về học phần' : 'Hủy'}
-          </button>
-          <button 
-            onClick={handleSaveEditor}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-2.5 rounded-lg font-bold transition-all"
-          >
-            Hoàn tất
-          </button>
-        </div>
+        <main className="flex-1 overflow-y-auto px-6 pb-20 pt-6">
+          <div className="max-w-4xl mx-auto w-full space-y-8">
+            
+            {/* Mascot advice */}
+            <KokoMascot 
+              expression="smile"
+              text="Senpai ơi! Tại đây, Senpai có thể biên soạn tiêu đề bộ từ và tự do thêm/xóa thuật ngữ ma pháp của riêng mình nhé! Koko đã trang bị sẵn tính năng nhập từ file Excel siêu cấp tiện lợi rồi đó! 🌸✏️"
+            />
 
-        <main className="flex-1 overflow-y-auto px-6 pb-20">
-          <div className="max-w-5xl mx-auto w-full space-y-8">
             {/* Metadata Section */}
-            <div className="space-y-6">
-              <button className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider opacity-80">
-                <CircleDot className="w-3 h-3" />
-                Công khai
-              </button>
-              
+            <div className="bg-[#1c143d] border-2 border-pink-500/20 p-6 rounded-3xl space-y-6">
               <div className="space-y-4">
                 <div className="group">
-                  <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1 ml-1">Tiêu đề</label>
+                  <label className="block text-[10px] font-black text-pink-300 uppercase tracking-widest mb-1.5 ml-1 font-bubble">Tiêu đề học phần 🌸</label>
                   <input 
                     type="text" 
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full bg-[#1a1b3a] border-b-2 border-white/10 p-4 text-xl font-bold focus:border-indigo-500 focus:outline-none transition-colors rounded-t-lg"
+                    className="w-full bg-[#0d0727] border-2 border-pink-500/20 p-4 text-lg font-extrabold focus:border-pink-500 focus:outline-none transition-all rounded-2xl text-pink-100 font-bubble"
+                    placeholder="Tiêu đề học phần..."
                   />
                 </div>
-                <input 
-                  type="text" 
-                  placeholder="Thêm mô tả..."
-                  className="w-full bg-[#1a1b3a] border-b-2 border-white/10 p-4 text-sm focus:border-indigo-500 focus:outline-none transition-colors rounded-b-lg"
-                />
               </div>
             </div>
 
             {/* Toolbar */}
-            <div className="flex flex-col gap-3 py-4 border-b border-white/5 bg-white/[0.02] p-4 rounded-xl border border-white/5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col gap-3 py-5 bg-[#1c143d] p-5 rounded-3xl border-2 border-pink-500/20">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-bubble">
                 <div className="flex flex-wrap gap-3">
                   <label 
                     htmlFor="file-import"
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold cursor-pointer transition-all shadow-md shadow-indigo-600/15"
+                    className="flex items-center gap-2 bg-pink-600 hover:bg-pink-500 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all shadow-lg anime-shadow-pink border-2 border-pink-400/50 hover:-translate-y-0.5"
                   >
-                    <Plus className="w-4 h-4" /> Nhập từ Excel/CSV/TXT
+                    <Plus className="w-4 h-4" /> Nhập từ Excel / CSV
                   </label>
-                  <button className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg text-sm font-bold border border-white/10">
-                    <Plus className="w-4 h-4" /> Thêm sơ đồ <Settings className="w-3 h-3 text-brand-accent" />
-                  </button>
                   <button 
                     onClick={handleSwapColumns}
-                    className="flex items-center gap-2 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 px-4 py-2 rounded-lg text-sm font-bold cursor-pointer transition-all"
+                    className="flex items-center gap-2 bg-[#1e1346] hover:bg-[#281d54] text-pink-300 border border-pink-500/20 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all hover:text-white"
                     title="Đảo vị trí Thuật ngữ và Định nghĩa của toàn bộ các thẻ hiện tại"
                   >
-                    <ArrowLeftRight className="w-4 h-4 text-indigo-400" /> Đảo 2 cột
+                    <ArrowLeftRight className="w-4 h-4 text-pink-400" /> Đảo 2 cột 🔄
                   </button>
                 </div>
-                <div className="flex items-center gap-4 self-end sm:self-auto">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-white/40 uppercase">Gợi ý</span>
-                    <div className="w-10 h-5 bg-indigo-600 rounded-full relative cursor-pointer">
-                      <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10"><ChevronDown className="w-4 h-4 rotate-90" /></button>
-                    <button className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10"><Settings className="w-4 h-4" /></button>
-                    <button className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 text-red-400"><X className="w-4 h-4" /></button>
-                  </div>
+                <div className="text-pink-300/60 text-xs font-bold font-bubble">
+                  Tổng cộng: <span className="text-pink-300 font-black">{editTerms.length} thẻ vựng</span>
                 </div>
               </div>
-              <p className="text-xs text-white/50 leading-relaxed bg-[#111224]/80 p-3 rounded-lg border border-white/5">
-                💡 <strong>Hướng dẫn Import nâng cao:</strong> Tải lên tệp Excel (.xlsx, .xls) gồm 2 hoặc 3 cột. Cột 1 là <strong>Từ vựng tiếng Anh</strong>, Cột 2 là <strong>Định nghĩa/Nghĩa tiếng Việt</strong>, Cột 3 (Tùy chọn) là <strong>Từ loại</strong> (Ví dụ: <em>n, v, adj, adv</em>) nhằm tự động gộp thành định dạng <strong>"Từ vựng (Từ loại)"</strong> để tạo các đáp án gây nhiễu cùng loại chuẩn xác hơn trong phần trắc nghiệm!
+              <p className="text-xs text-pink-200/60 leading-relaxed bg-[#0d0727] p-3 rounded-2xl border border-pink-500/10 font-bubble">
+                💡 <strong>Hướng dẫn Import nâng cao:</strong> Tải lên tệp Excel (.xlsx, .xls) chứa 2 hoặc 3 cột. Cột 1 là <strong>Từ vựng tiếng Anh</strong>, Cột 2 là <strong>Định nghĩa/Nghĩa tiếng Việt</strong>, Cột 3 (Tùy chọn) là <strong>Từ loại</strong> (Ví dụ: <em>n, v, adj, adv</em>) nhằm tự động kết hợp thành định dạng <strong>"Từ vựng (Từ loại)"</strong> giúp hệ thống tạo đáp án trắc nghiệm chuẩn xác hơn nhé!
               </p>
             </div>
 
             {/* Term List */}
             <div className="space-y-6">
               {editTerms.map((term, index) => (
-                <div key={term.id} className="bg-[#1a1b3a] rounded-xl p-6 border border-white/5 group">
+                <div key={term.id} className="bg-[#1c143d] rounded-3xl p-6 border-2 border-pink-500/10 group hover:border-pink-500/30 transition-all relative">
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-lg font-bold opacity-40">{index + 1}</span>
-                    <div className="flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-base font-black text-pink-400/50 font-bubble bg-[#0d0727] px-3.5 py-1 rounded-full border border-pink-500/10">Thẻ số {index + 1}</span>
+                    <div className="flex items-center gap-3">
                       <button 
                         onClick={() => speak(term.term)}
-                        className="text-white/40 hover:text-indigo-400 transition-colors"
+                        className="p-2 bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 hover:text-pink-100 rounded-full transition-colors cursor-pointer"
+                        title="Nghe phát âm"
                       >
-                        <Volume2 className="w-5 h-5" />
+                        <Volume2 className="w-4 h-4" />
                       </button>
-                      <div className="cursor-grab active:cursor-grabbing text-white/40 hover:text-white">
-                        <div className="w-5 h-0.5 bg-current mb-1" />
-                        <div className="w-5 h-0.5 bg-current" />
-                      </div>
                       <button 
                         onClick={() => removeTermRow(term.id)}
-                        className="text-white/40 hover:text-red-400 transition-colors"
+                        className="p-2 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white rounded-full transition-colors cursor-pointer"
+                        title="Xóa thẻ"
                       >
-                        <X className="w-5 h-5" />
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
                   
                   <div className="flex flex-col md:flex-row gap-6">
-                    <div className="flex-1 space-y-2">
+                    <div className="flex-1 space-y-1.5 focus-within:z-10">
+                      <label className="text-[10px] font-bold text-pink-300/50 uppercase tracking-widest font-bubble">Thuật ngữ tiếng Anh (Từ loại)</label>
                       <input 
                         type="text" 
                         value={term.term}
                         onChange={(e) => updateTerm(term.id, 'term', e.target.value)}
-                        className="w-full bg-transparent border-b-2 border-white/10 py-2 focus:border-indigo-500 focus:outline-none transition-colors text-lg"
-                        placeholder="Nhập thuật ngữ..."
+                        className="w-full bg-[#0d0727] border-2 border-pink-500/10 rounded-2xl p-3 focus:border-pink-500/50 focus:outline-none transition-colors text-base font-bold text-white font-bubble"
+                        placeholder="Ví dụ: Elegance (n) hoặc Prevent (v)..."
                       />
-                      <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Thuật ngữ</label>
                     </div>
-                    <div className="flex-1 space-y-2">
+                    <div className="flex-1 space-y-1.5">
+                      <label className="text-[10px] font-bold text-pink-300/50 uppercase tracking-widest font-bubble">Ý nghĩa / Định nghĩa tiếng Việt</label>
                       <input 
                         type="text" 
                         value={term.definition}
                         onChange={(e) => updateTerm(term.id, 'definition', e.target.value)}
-                        className="w-full bg-transparent border-b-2 border-white/10 py-2 focus:border-indigo-500 focus:outline-none transition-colors text-lg"
-                        placeholder="Nhập định nghĩa..."
+                        className="w-full bg-[#0d0727] border-2 border-pink-500/10 rounded-2xl p-3 focus:border-pink-500/50 focus:outline-none transition-colors text-base font-bold text-white font-bubble"
+                        placeholder="Ví dụ: Sự thanh lịch..."
                       />
-                      <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Định nghĩa</label>
-                    </div>
-                    <div className="w-24 h-24 border-2 border-dashed border-white/10 rounded-lg flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-white/5 transition-colors">
-                      <Settings className="w-5 h-5 opacity-40" />
-                      <span className="text-[8px] font-bold uppercase opacity-40">Hình ảnh</span>
                     </div>
                   </div>
                 </div>
@@ -1965,9 +2128,9 @@ export default function App() {
 
             <button 
               onClick={addTermRow}
-              className="w-full bg-[#1a1b3a] border-2 border-dashed border-white/10 py-8 rounded-xl text-lg font-bold hover:bg-white/5 transition-all group"
+              className="w-full bg-[#1c143d] border-2 border-dashed border-pink-500/30 py-6 rounded-3xl text-sm font-black text-pink-300 hover:text-pink-100 hover:bg-pink-500/5 transition-all group cursor-pointer uppercase tracking-wider font-bubble"
             >
-              <span className="border-b-4 border-indigo-500 group-hover:border-indigo-400 transition-colors">+ THÊM THẺ</span>
+              + THÊM THẺ MỚI 🌸
             </button>
           </div>
         </main>
@@ -1976,123 +2139,149 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0b1e] text-white flex flex-col font-sans selection:bg-brand-accent/30">
+    <div className="min-h-screen bg-[#0d0727] text-white flex flex-col font-sans relative overflow-hidden pb-12">
+      {/* Sparkles backdrop decoration */}
+      <div className="absolute top-12 left-12 text-white/5 text-4xl select-none pointer-events-none animate-bounce" style={{ animationDuration: '8s' }}>🌸</div>
+      <div className="absolute bottom-20 right-12 text-white/5 text-5xl select-none pointer-events-none animate-pulse" style={{ animationDuration: '10s' }}>🌸</div>
+
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4">
+      <header className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-b border-pink-500/10 gap-3">
         <div 
           className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
           onClick={() => setView('dashboard')}
         >
-          <div className="w-8 h-8 rounded-full border-2 border-indigo-500 flex items-center justify-center">
-            <CircleDot className="w-5 h-5 text-indigo-400" />
+          <div className="w-9 h-9 rounded-xl bg-pink-500/25 border border-pink-300 flex items-center justify-center">
+            <span className="text-sm">🌸</span>
           </div>
-          <span className="font-semibold text-lg">Thư viện</span>
-          <ChevronDown className="w-4 h-4 opacity-60 rotate-90" />
+          <span className="font-bold text-pink-300 tracking-wide font-bubble">Thư viện của bạn</span>
+          <ChevronDown className="w-4 h-4 text-pink-300/60 rotate-90" />
+          <span className="text-xs bg-pink-600/30 text-pink-200 font-extrabold px-2.5 py-1 rounded-full border border-pink-500/20">Trắc nghiệm</span>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
           <button 
             onClick={() => {
               if (window.confirm('Bạn có chắc chắn muốn làm lại từ đầu không? Toàn bộ tiến trình làm bài hiện tại của học phần này sẽ được thiếp lập lại.')) {
                 handleRestart();
               }
             }}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors text-indigo-400 hover:text-indigo-300"
+            className="p-2.5 bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white rounded-xl transition-all border border-purple-500/30"
             title="Làm lại từ đầu"
           >
             <RefreshCw className="w-5 h-5" />
           </button>
           <button 
             onClick={handleShuffleQuiz}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            className="p-2.5 bg-pink-600/20 hover:bg-pink-600 text-pink-300 hover:text-white rounded-xl transition-all border border-pink-500/30"
             title="Xáo trộn câu hỏi"
           >
-            <Shuffle className="w-6 h-6 opacity-70" />
+            <Shuffle className="w-5 h-5" />
           </button>
           <button 
             onClick={openEditor}
-            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-1.5 rounded-full text-sm font-bold transition-all"
+            className="flex items-center gap-1.5 bg-[#1f1642] hover:bg-[#281d54] text-pink-200 border-2 border-pink-400/25 px-4 py-2 rounded-xl text-xs font-black transition-all"
           >
-            <Plus className="w-4 h-4" />
-            Thêm từ vựng
-          </button>
-          <button className="p-2 hover:bg-white/10 rounded-full transition-colors">
-            <Settings className="w-6 h-6 opacity-70" />
+            <Plus className="w-3.5 h-3.5" />
+            Thêm từ vựng 🌟
           </button>
           <button 
-            onClick={openEditor}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            onClick={() => setView('dashboard')}
+            className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-colors"
           >
-            <X className="w-6 h-6 opacity-70" />
+            <X className="w-5 h-5 opacity-70" />
           </button>
         </div>
       </header>
 
       {/* Progress Bar */}
-      <div className="px-6 mt-4">
+      <div className="px-6 mt-6 max-w-2xl mx-auto w-full">
         <div className="flex items-center gap-3">
-          <span className="text-emerald-400 font-bold bg-emerald-400/10 w-8 h-8 flex items-center justify-center rounded-full text-sm">
+          <span className="text-pink-300 font-black bg-pink-500/20 w-8 h-8 flex items-center justify-center rounded-xl text-xs border border-pink-400/30">
             {currentIdx + 1}
           </span>
-          <div className="flex-1 flex gap-1 h-2.5">
+          <div className="flex-1 flex gap-1 h-3">
             {quizQuestions.map((_, i) => {
               const status = questionStatus[i];
               let innerColor = 'bg-transparent';
               
               if (status === 'correct') {
-                innerColor = 'bg-emerald-500';
+                innerColor = 'bg-emerald-400';
               } else if (status === 'incorrect') {
-                innerColor = 'bg-red-500';
+                innerColor = 'bg-rose-500';
               } else if (i === currentIdx) {
-                innerColor = 'bg-indigo-500';
+                innerColor = 'bg-pink-400';
               }
 
               return (
-                <div key={i} className="flex-1 rounded-full overflow-hidden bg-white/10">
+                <div key={i} className="flex-1 rounded-full overflow-hidden bg-white/5 border border-white/5">
                   <div 
-                    className={`h-full transition-all duration-500 ${innerColor}`}
+                    className={`h-full transition-all duration-300 ${innerColor}`}
                     style={{ width: (status !== 'unanswered' || i === currentIdx) ? '100%' : '0%' }}
                   />
                 </div>
               );
             })}
           </div>
-          <span className="text-white/40 font-bold bg-white/5 w-8 h-8 flex items-center justify-center rounded-full text-sm">
+          <span className="text-white/40 font-black bg-white/5 w-8 h-8 flex items-center justify-center rounded-xl text-xs border border-white/5">
             {quizQuestions.length}
           </span>
         </div>
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col px-6 mt-12 max-w-2xl mx-auto w-full">
-        <div className="space-y-1">
-          <span className="text-white/50 text-sm font-medium uppercase tracking-wider">Định nghĩa</span>
-          <h1 className="text-3xl font-bold tracking-tight">
+      <main className="flex-1 flex flex-col px-6 mt-8 max-w-2xl mx-auto w-full">
+        
+        {/* Interactive Anime Study Companion */}
+        <KokoMascot 
+          expression={
+            !showFeedback ? 'smile' :
+            isCorrect ? 'happy' : 'sad'
+          }
+          text={
+            !showFeedback 
+              ? "Senpai ơi! Hãy tìm thuật ngữ tiếng Anh phù hợp nhất cho định nghĩa bên dưới nhé! Koko tin Senpai làm đúng 100%! Cố lên nào! ⭐🌸"
+              : isCorrect
+                ? "Kyaaa! Quá xuất sắc luôn Senpai ơi! ✨ Đúng y chóc! Từ vựng mới đã được thu phục vào ma bạ rồi! Koko tự hào cực kỳ! 🎉💖"
+                : "Ưnn... Tiếc quá đi Senpai. Nhầm một xíu xiu thôi. Đừng nản lòng nha, Senpai làm lại cực kỳ đỉnh luôn! Hãy ghi nhớ đáp án đúng nhé! 💕"
+          }
+        />
+
+        <div className="space-y-2 bg-[#1e1445]/50 border-2 border-dashed border-pink-500/20 p-6 rounded-3xl mb-8 relative">
+          <div className="absolute top-2.5 right-3 text-xs bg-pink-500/20 text-pink-300 font-extrabold px-2.5 py-0.5 rounded-full border border-pink-500/25 uppercase font-mono tracking-wider">
+            Định nghĩa ma thuật 🔮
+          </div>
+          <span className="text-pink-300/50 text-xs font-bold uppercase tracking-wider block">Nghĩa tiếng Việt</span>
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white font-bubble">
             {currentQuestion.definition}
           </h1>
         </div>
 
-        <div className="mt-12 space-y-4">
-          <p className="text-white/60 text-sm font-medium">Chọn đáp án đúng</p>
+        <div className="space-y-4">
+          <p className="text-pink-300/60 text-xs font-black uppercase tracking-widest pl-1">Chọn đáp án ma thuật chính xác:</p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {currentQuestion.options.map((option) => {
               const isSelected = selectedId === option.id;
               const isCorrectOption = option.id === currentQuestion.correctId;
               
-              let borderColor = "border-white/10";
-              let bgColor = "bg-[#15162c]";
+              let borderColor = "border-pink-500/20";
+              let bgColor = "bg-[#1c143d]";
+              let animeShadow = "anime-shadow-pink";
               
               if (showFeedback) {
                 if (isCorrectOption) {
                   borderColor = "border-emerald-500";
                   bgColor = "bg-emerald-500/10";
+                  animeShadow = "anime-shadow-emerald";
                 } else if (isSelected && !isCorrectOption) {
-                  borderColor = "border-red-500";
-                  bgColor = "bg-red-500/10";
+                  borderColor = "border-rose-500";
+                  bgColor = "bg-rose-500/10";
+                  animeShadow = "anime-shadow-pink";
                 }
               } else if (isSelected) {
-                borderColor = "border-indigo-500";
+                borderColor = "border-purple-400";
+                bgColor = "bg-purple-900/10";
+                animeShadow = "anime-shadow-purple";
               }
 
               return (
@@ -2101,23 +2290,25 @@ export default function App() {
                   whileHover={!showFeedback ? { scale: 1.02 } : {}}
                   whileTap={!showFeedback ? { scale: 0.98 } : {}}
                   onClick={() => handleSelect(option.id)}
-                  className={`relative flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all duration-200 ${borderColor} ${bgColor} group`}
+                  className={`relative flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all duration-200 ${borderColor} ${bgColor} ${animeShadow} group cursor-pointer`}
                 >
-                  <span className={`flex items-center justify-center w-8 h-8 rounded-full border-2 text-sm font-bold transition-colors ${
-                    isSelected ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-white/20 text-white/40 group-hover:border-white/40'
+                  <span className={`flex items-center justify-center w-8 h-8 rounded-xl border-2 text-xs font-black transition-colors ${
+                    isSelected 
+                      ? 'bg-purple-500 border-purple-400 text-white shadow' 
+                      : 'border-pink-500/20 text-pink-300/50 group-hover:border-pink-500/50'
                   }`}>
                     {option.id}
                   </span>
-                  <span className="text-lg font-medium">
+                  <span className="text-lg font-extrabold text-white font-bubble">
                     {option.text}
-                    <span className="text-white/40 ml-1">({option.partOfSpeech})</span>
+                    <span className="text-pink-300/40 text-xs ml-1.5 font-normal">({option.partOfSpeech})</span>
                   </span>
 
                   {showFeedback && isCorrectOption && (
-                    <CheckCircle2 className="absolute right-4 w-6 h-6 text-emerald-500" />
+                    <CheckCircle2 className="absolute right-4 w-6 h-6 text-emerald-400 shrink-0" />
                   )}
                   {showFeedback && isSelected && !isCorrectOption && (
-                    <XCircle className="absolute right-4 w-6 h-6 text-red-500" />
+                    <XCircle className="absolute right-4 w-6 h-6 text-rose-500 shrink-0" />
                   )}
                 </motion.button>
               );
@@ -2126,53 +2317,63 @@ export default function App() {
         </div>
 
         {/* Action Footer */}
-        <div className="mt-8 flex items-center justify-between">
+        <div className="mt-8 flex items-center justify-between border-t border-white/5 pt-4">
           <button 
             onClick={() => {
               const correctOption = currentQuestion.options.find(o => o.id === currentQuestion.correctId);
               if (correctOption) speak(correctOption.text);
             }}
-            className="p-3 hover:bg-white/5 rounded-full transition-colors group"
+            type="button"
+            className="p-3 bg-pink-500/10 hover:bg-pink-500/20 active:scale-90 rounded-full transition-colors group cursor-pointer border border-pink-500/25"
+            title="Phát âm từ vựng"
           >
-            <Volume2 className="w-6 h-6 text-white/40 group-hover:text-white transition-colors" />
+            <Volume2 className="w-5 h-5 text-pink-300 group-hover:text-pink-200 transition-colors" />
           </button>
           
           <button 
-            className="text-indigo-400 font-semibold hover:text-indigo-300 transition-colors text-sm"
+            className="text-pink-400 font-extrabold hover:text-pink-300 transition-colors text-xs uppercase tracking-wider border-b-2 border-dashed border-pink-400 hover:border-pink-300"
             onClick={() => {
               if (showFeedback && !isCorrect) {
                 handleNext();
+              } else if (!showFeedback) {
+                // Skips to next or resolves incorrect
+                handleSelect(0); // Trigger incorrect skip
               }
             }}
           >
-            {showFeedback && !isCorrect ? "Thử lại câu khác" : "Bạn không biết?"}
+            {showFeedback && !isCorrect ? "Tiếp tục bài học 🌸" : "Chưa thuộc từ này? Bỏ qua ⭐"}
           </button>
         </div>
 
-
-        {/* Feedback Message */}
+        {/* Feedback bottom trigger */}
         <AnimatePresence>
           {showFeedback && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className={`mt-12 p-4 rounded-2xl flex items-center justify-between ${
-                isCorrect ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+              className={`mt-8 p-5 rounded-3xl border-2 flex items-center justify-between shadow-lg ${
+                isCorrect 
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 anime-shadow-emerald' 
+                  : 'bg-red-500/10 border-red-500/30 text-red-300 anime-shadow-pink'
               }`}
             >
               <div className="flex items-center gap-3">
-                {isCorrect ? <CheckCircle2 /> : <XCircle />}
-                <span className="font-bold">
-                  {isCorrect ? 'Chính xác! Đang chuyển câu tiếp theo...' : 'Chưa đúng rồi. Hãy thử lại!'}
+                {isCorrect ? (
+                  <CheckCircle2 className="text-emerald-400 shrink-0" />
+                ) : (
+                  <XCircle className="text-rose-400 shrink-0" />
+                )}
+                <span className="font-extrabold text-xs md:text-sm font-bubble">
+                  {isCorrect ? 'Tuyệt cú mèo! Đang chuyển câu sau...' : 'Tiếc quá! Senpai hãy xem kỹ và thử lại nhé!'}
                 </span>
               </div>
               {!isCorrect && (
                 <button 
                   onClick={handleNext}
-                  className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-bold transition-colors"
+                  className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl text-xs font-black transition-all border border-white/10 cursor-pointer"
                 >
-                  Bỏ qua
+                  Xem câu tiếp theo 🌸
                 </button>
               )}
             </motion.div>
