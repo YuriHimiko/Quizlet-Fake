@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   ChevronDown, 
   Settings, 
@@ -14,6 +15,7 @@ import {
   CheckCircle2,
   XCircle,
   Plus,
+  Minus,
   Save,
   Shuffle,
   Trash2,
@@ -57,6 +59,9 @@ import {
   orderBy,
   onSnapshot
 } from './firebase';
+
+// @ts-ignore
+import MASCOT_URL from './assets/images/anime_mascot_1781746439261.jpg';
 
 interface Option {
   id: number;
@@ -142,9 +147,1059 @@ const INITIAL_QUESTIONS: Question[] = [
   }
 ];
 
-const MASCOT_URL = "/src/assets/images/anime_mascot_1781746439261.jpg";
+const LIVE2D_MODELS = [
+  {
+    id: 'shizuku',
+    name: 'Shizuku-chan',
+    emoji: '👩‍🏫',
+    url: 'https://unpkg.com/live2d-widget-model-shizuku@1.0.5/assets/shizuku.model.json',
+    desc: 'Lớp trưởng học đường tinh nghịch, nháy mắt lém lỉnh và cực kỳ chăm chỉ! 🌸',
+    canvasWidth: 150,
+    canvasHeight: 300,
+    canvasStyle: { transform: 'scale(1.15) translateY(14%)' }
+  },
+  {
+    id: 'koharu',
+    name: 'Koharu dễ thương',
+    emoji: '🎒',
+    url: 'https://unpkg.com/live2d-widget-model-koharu@1.0.5/assets/koharu.model.json',
+    desc: 'Cô bé học sinh cấp 1 đeo ba lô đỏ cực kỳ đáng yêu, chăm chú nghe giảng! 🥰',
+    canvasWidth: 150,
+    canvasHeight: 300,
+    canvasStyle: { transform: 'scale(1.15) translateY(14%)' }
+  },
+  {
+    id: 'miku',
+    name: 'Hatsune Miku',
+    emoji: '🎤',
+    url: 'https://unpkg.com/live2d-widget-model-miku@1.0.5/assets/miku.model.json',
+    desc: 'Bảo bối ca sĩ ảo nổi tiếng với mái tóc hai bím xanh lam rực rỡ và tràn đầy sức sống! 🌟',
+    canvasWidth: 150,
+    canvasHeight: 350,
+    canvasStyle: { transform: 'scale(1.2) translateY(16%)' }
+  },
+  {
+    id: 'tororo',
+    name: 'Mèo Tororo Trắng',
+    emoji: '🐱',
+    url: 'https://unpkg.com/live2d-widget-model-tororo@1.0.5/assets/tororo.model.json',
+    desc: 'Chú mèo trắng múp míp thích ngủ nướng nhưng luôn sẵn sàng đồng hành cùng Senpai! 💤',
+    canvasWidth: 200,
+    canvasHeight: 200,
+    canvasStyle: { transform: 'scale(0.9) translateY(0%)' }
+  },
+  {
+    id: 'hijiki',
+    name: 'Mèo Hijiki Đen',
+    emoji: '🐈‍⬛',
+    url: 'https://unpkg.com/live2d-widget-model-hijiki@1.0.5/assets/hijiki.model.json',
+    desc: 'Chú mèo đen bí ẩn, thỉnh thoảng liếc nhìn và nghịch ngợm cực lanh lợi! ✨',
+    canvasWidth: 200,
+    canvasHeight: 200,
+    canvasStyle: { transform: 'scale(0.9) translateY(0%)' }
+  },
+  {
+    id: 'unitychan',
+    name: 'Unity-chan',
+    emoji: '⚔️',
+    url: 'https://unpkg.com/live2d-widget-model-unitychan@1.0.5/assets/unitychan.model.json',
+    desc: 'Cô gái năng động với hai bím tóc vàng rực lửa của nhà phát triển game Unity! 🎮',
+    canvasWidth: 150,
+    canvasHeight: 300,
+    canvasStyle: { transform: 'scale(1.15) translateY(12%)' }
+  },
+  {
+    id: 'wanko',
+    name: 'Cún Wanko',
+    emoji: '🐶',
+    url: 'https://unpkg.com/live2d-widget-model-wanko@1.0.5/assets/wanko.model.json',
+    desc: 'Chú cún shiba con siêu dễ ghét luôn mừng rỡ vẫy tai mỗi khi thấy Senpai tiến bộ! 🦴',
+    canvasWidth: 200,
+    canvasHeight: 200,
+    canvasStyle: { transform: 'scale(0.9) translateY(0%)' }
+  },
+  {
+    id: 'chitose',
+    name: 'Chitose-chan',
+    emoji: '🎴',
+    url: 'https://unpkg.com/live2d-widget-model-chitose@1.0.5/assets/chitose.model.json',
+    desc: 'Thiếu nữ kimono trang nhã, dịu dàng đồng hành qua từng thử thách khó khằn!',
+    canvasWidth: 150,
+    canvasHeight: 300,
+    canvasStyle: { transform: 'scale(1.15) translateY(12%)' }
+  }
+];
+
+const mascotListeners = new Set<() => void>();
+let globalMascotType: 'static' | 'live2d' = 'static';
+let globalLive2dModelId: string = 'shizuku';
+let globalShowMascotConfig = false;
+let globalVtuberEnabled = false;
+let globalVtuberWsUrl = 'ws://localhost:8000/api/v1/client-interface';
+let globalVtuberVoiceInput = false;
+
+try {
+  globalMascotType = (localStorage.getItem('mascot_type') as any) || 'static';
+  globalLive2dModelId = localStorage.getItem('mascot_live2d_id') || 'shizuku';
+  globalVtuberEnabled = localStorage.getItem('mascot_vtuber_enabled') === 'true';
+  globalVtuberWsUrl = localStorage.getItem('mascot_vtuber_ws_url') || 'ws://localhost:8000/api/v1/client-interface';
+  globalVtuberVoiceInput = localStorage.getItem('mascot_vtuber_voice_input') === 'true';
+} catch (e) {
+  console.warn('Failed to read initial mascot configuration from localStorage:', e);
+}
+
+const MascotState = {
+  get type() { return globalMascotType; },
+  set type(val) {
+    globalMascotType = val;
+    try {
+      localStorage.setItem('mascot_type', val);
+    } catch (e) {
+      console.warn('Failed to save mascot_type to localStorage:', e);
+    }
+    mascotListeners.forEach(l => l());
+  },
+  get modelId() { return globalLive2dModelId; },
+  set modelId(val) {
+    globalLive2dModelId = val;
+    try {
+      localStorage.setItem('mascot_live2d_id', val);
+    } catch (e) {
+      console.warn('Failed to save mascot_live2d_id to localStorage:', e);
+    }
+    mascotListeners.forEach(l => l());
+  },
+  get showConfig() { return globalShowMascotConfig; },
+  set showConfig(val) {
+    globalShowMascotConfig = val;
+    mascotListeners.forEach(l => l());
+  },
+  get vtuberEnabled() { return globalVtuberEnabled; },
+  set vtuberEnabled(val) {
+    globalVtuberEnabled = val;
+    try {
+      localStorage.setItem('mascot_vtuber_enabled', String(val));
+    } catch (e) {
+      console.warn('Failed to save mascot_vtuber_enabled to localStorage:', e);
+    }
+    mascotListeners.forEach(l => l());
+  },
+  get vtuberWsUrl() { return globalVtuberWsUrl; },
+  set vtuberWsUrl(val) {
+    globalVtuberWsUrl = val;
+    try {
+      localStorage.setItem('mascot_vtuber_ws_url', val);
+    } catch (e) {
+      console.warn('Failed to save mascot_vtuber_ws_url to localStorage:', e);
+    }
+    mascotListeners.forEach(l => l());
+  },
+  get vtuberVoiceInput() { return globalVtuberVoiceInput; },
+  set vtuberVoiceInput(val) {
+    globalVtuberVoiceInput = val;
+    try {
+      localStorage.setItem('mascot_vtuber_voice_input', String(val));
+    } catch (e) {
+      console.warn('Failed to save mascot_vtuber_voice_input to localStorage:', e);
+    }
+    mascotListeners.forEach(l => l());
+  },
+  subscribe(listener: () => void) {
+    mascotListeners.add(listener);
+    return () => mascotListeners.delete(listener);
+  }
+};
+
+const vtuberListeners = new Set<() => void>();
+let globalVtuberSpeechText = 'Xin chào senpai! Tôi đang ở cấu hình Open-LLM-VTuber, hãy kết nối và trò chuyện cùng tôi nhé! ✨🌸';
+let globalVtuberWsStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
+let globalVtuberHistory: { role: 'user' | 'assistant'; text: string; time: string }[] = [];
+
+try {
+  const storedHistory = localStorage.getItem('vtuber_chat_history');
+  if (storedHistory) {
+    globalVtuberHistory = JSON.parse(storedHistory);
+  }
+} catch (e) {
+  console.warn('Failed to parse stored chat history:', e);
+}
+
+const VtuberState = {
+  get speechText() { return globalVtuberSpeechText; },
+  set speechText(val) {
+    globalVtuberSpeechText = val;
+    vtuberListeners.forEach(l => l());
+  },
+  get status() { return globalVtuberWsStatus; },
+  set status(val) {
+    globalVtuberWsStatus = val;
+    vtuberListeners.forEach(l => l());
+  },
+  get history() { return globalVtuberHistory; },
+  set history(val) {
+    globalVtuberHistory = val;
+    try {
+      localStorage.setItem('vtuber_chat_history', JSON.stringify(val));
+    } catch (e) {
+      console.warn('Failed to save chat history to localStorage:', e);
+    }
+    vtuberListeners.forEach(l => l());
+  },
+  addMessage(role: 'user' | 'assistant', text: string) {
+    const time = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    const updated = [...globalVtuberHistory, { role, text, time }].slice(-50); // Keep last 50 messages
+    this.history = updated;
+    if (role === 'assistant') {
+      this.speechText = text;
+    }
+  },
+  clearHistory() {
+    this.history = [];
+    vtuberListeners.forEach(l => l());
+  },
+  subscribe(listener: () => void) {
+    vtuberListeners.add(listener);
+    return () => vtuberListeners.delete(listener);
+  }
+};
+
+declare global {
+  interface Window {
+    loadlive2d?: (id: string, url: string, offset?: number) => void;
+  }
+}
+
+let vtuberAudioCtx: AudioContext | null = null;
+let vtuberActiveSource: AudioBufferSourceNode | null = null;
+
+function stopVtuberAudio() {
+  if (vtuberActiveSource) {
+    try {
+      vtuberActiveSource.stop();
+    } catch (e) {}
+    vtuberActiveSource = null;
+  }
+}
+
+function playVtuberAudio(base64Data: string) {
+  try {
+    if (!base64Data || typeof base64Data !== 'string') return;
+
+    if (!vtuberAudioCtx) {
+      vtuberAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (vtuberAudioCtx.state === 'suspended') {
+      vtuberAudioCtx.resume();
+    }
+
+    // Strip out data URI header if present (e.g. data:audio/wav;base64,)
+    let cleanBase64 = base64Data;
+    if (cleanBase64.includes(',')) {
+      cleanBase64 = cleanBase64.split(',')[1];
+    }
+    // Remove whitespace characters & any non-base64 padding characters
+    cleanBase64 = cleanBase64.replace(/[^A-Za-z0-9+/=]/g, '');
+
+    const binaryString = window.atob(cleanBase64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    vtuberAudioCtx.decodeAudioData(bytes.buffer, (buffer) => {
+      stopVtuberAudio();
+      if (!vtuberAudioCtx) return;
+      const source = vtuberAudioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(vtuberAudioCtx.destination);
+      source.start(0);
+      vtuberActiveSource = source;
+    }, (err) => {
+      console.error('Decoded audio failure:', err);
+    });
+  } catch (error) {
+    console.error('Error starting audio playback:', error);
+  }
+}
+
+function Live2DCompanion({ live2dModelId, getMascotName, getAvatarEmoji, onOpenConfig }: { 
+  live2dModelId: string; 
+  getMascotName: () => string; 
+  getAvatarEmoji: () => string;
+  onOpenConfig: () => void;
+}) {
+  const [loadingModel, setLoadingModel] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [uniqueCanvasId] = useState(() => 'live2d-canvas-' + Math.random().toString(16).slice(2));
+  
+  // VTuber States
+  const [vtuberEnabled, setVtuberEnabled] = useState(MascotState.vtuberEnabled);
+  const [vtuberWsUrl, setVtuberWsUrl] = useState(MascotState.vtuberWsUrl);
+  const [wsStatus, setWsStatus] = useState(VtuberState.status);
+  const [chatHistory, setChatHistory] = useState(VtuberState.history);
+  const [chatText, setChatText] = useState('');
+  const [showChatPanel, setShowChatPanel] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Subscribe to external states
+  useEffect(() => {
+    const unsubMascot = MascotState.subscribe(() => {
+      setVtuberEnabled(MascotState.vtuberEnabled);
+      setVtuberWsUrl(MascotState.vtuberWsUrl);
+    });
+    const unsubVtuber = VtuberState.subscribe(() => {
+      setWsStatus(VtuberState.status);
+      setChatHistory(VtuberState.history);
+    });
+    return () => {
+      unsubMascot();
+      unsubVtuber();
+    };
+  }, []);
+
+  // Live2D canvas loader
+  useEffect(() => {
+    let active = true;
+    setLoadingModel(true);
+
+    const loadModel = () => {
+      if (!active) return;
+
+      const canvas = document.getElementById(uniqueCanvasId);
+      if (!canvas) {
+        setTimeout(loadModel, 100);
+        return;
+      }
+
+      if (window.loadlive2d) {
+        try {
+          const model = LIVE2D_MODELS.find(m => m.id === live2dModelId) || LIVE2D_MODELS[0];
+          window.loadlive2d(uniqueCanvasId, model.url, 0.5);
+          setTimeout(() => {
+            if (active) setLoadingModel(false);
+          }, 800);
+        } catch (err) {
+          console.error('Error rendering Live2D model inside global canvas:', err);
+          if (active) setLoadingModel(false);
+        }
+      }
+    };
+
+    const delayTimer = setTimeout(loadModel, 150);
+    return () => {
+      active = false;
+      clearTimeout(delayTimer);
+    };
+  }, [live2dModelId, uniqueCanvasId]);
+
+  // WebSocket Connection Handlers for Open-LLM-VTuber
+  useEffect(() => {
+    if (!vtuberEnabled) {
+      VtuberState.status = 'disconnected';
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      return;
+    }
+
+    let active = true;
+    let ws: WebSocket | null = null;
+    let reconnectTimer: any = null;
+
+    const isValidWsUrl = (url: string): boolean => {
+      if (!url) return false;
+      const t = url.trim();
+      if (!t.startsWith('ws://') && !t.startsWith('wss://')) return false;
+      if (
+        t === 'ws://' ||
+        t === 'wss://' ||
+        t === 'ws:/' ||
+        t === 'ws:' ||
+        t === 'wss:/' ||
+        t === 'wss:'
+      ) {
+        return false;
+      }
+      try {
+        const parsed = new URL(t);
+        return parsed.protocol === 'ws:' || parsed.protocol === 'wss:';
+      } catch (e) {
+        return false;
+      }
+    };
+
+    const establishConnection = () => {
+      if (!active) return;
+
+      const trimmedUrl = vtuberWsUrl ? vtuberWsUrl.trim() : '';
+
+      if (!isValidWsUrl(trimmedUrl)) {
+        VtuberState.status = 'disconnected';
+        // Do not schedule reconnect timer if the URL is invalid or being typed
+        return;
+      }
+
+      // Proactively handle HTTPS security restrictions for ws://
+      if (window.location.protocol === 'https:' && trimmedUrl.startsWith('ws://')) {
+        try {
+          const parsed = new URL(trimmedUrl);
+          const hostname = parsed.hostname;
+          if (hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname !== '0.0.0.0' && hostname !== '::1') {
+            console.warn(
+              'Insecure WebSocket connection (ws://) to a remote host was suppressed because this page runs over HTTPS. Please configure a wss:// endpoint or use local loopback.'
+            );
+            VtuberState.status = 'error';
+            reconnectTimer = setTimeout(establishConnection, 10000);
+            return;
+          }
+        } catch (e) {
+          VtuberState.status = 'disconnected';
+          return;
+        }
+      }
+
+      VtuberState.status = 'connecting';
+
+      try {
+        ws = new WebSocket(trimmedUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          if (!active) return;
+          VtuberState.status = 'connected';
+          console.log('Open-LLM-VTuber connected!');
+        };
+
+        ws.onmessage = async (event) => {
+          if (!active) return;
+          try {
+            if (typeof event.data !== 'string') return;
+            const data = JSON.parse(event.data);
+
+            // 1. Text payload handler
+            if (data.type === 'text' || data.type === 'text-input' || data.text) {
+              const textStr = data.payload || data.text || data.text_data;
+              if (textStr) {
+                // If it's a stream, we only append it on completion, or if it's full text
+                VtuberState.addMessage('assistant', textStr);
+              }
+            }
+
+            // 2. Audio payload handler (base64 wav/mp3 chunks)
+            if (data.type === 'audio' || data.audio || data.audio_data) {
+              const b64 = data.payload || data.audio || data.audio_data;
+              if (b64 && typeof b64 === 'string') {
+                playVtuberAudio(b64);
+              }
+            }
+
+            // 3. Expression/emotion mapping handler
+            if (data.type === 'expression' || data.type === 'emotion' || data.expression) {
+              const expr = data.payload || data.id || data.expression;
+              console.log('Mapped Vtuber expression:', expr);
+            }
+
+            // 4. Client instruction commands
+            if (data.type === 'control' || data.command) {
+              const cmd = data.payload || data.command;
+              if (cmd === 'interrupt' || cmd === 'stop') {
+                stopVtuberAudio();
+              }
+            }
+          } catch (e) {
+            console.warn('Wss payload skip:', e);
+          }
+        };
+
+        ws.onerror = () => {
+          if (!active) return;
+          VtuberState.status = 'error';
+        };
+
+        ws.onclose = () => {
+          if (!active) return;
+          VtuberState.status = 'disconnected';
+          // auto-reconnect logic
+          reconnectTimer = setTimeout(establishConnection, 4000);
+        };
+      } catch (err) {
+        console.warn('WS Connection initiation mistake suppressed gently:', err);
+        VtuberState.status = 'error';
+        reconnectTimer = setTimeout(establishConnection, 5000);
+      }
+    };
+
+    establishConnection();
+
+    return () => {
+      active = false;
+      if (ws) {
+        ws.close();
+      }
+      clearTimeout(reconnectTimer);
+    };
+  }, [vtuberEnabled, vtuberWsUrl]);
+
+  // Autoscroll conversation history
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatHistory, showChatPanel]);
+
+  // Send message
+  const handleSendChat = () => {
+    if (!chatText.trim()) return;
+
+    const message = chatText.trim();
+    VtuberState.addMessage('user', message);
+    setChatText('');
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      // Send standard payload format of open-llm-vtuber
+      const payload = {
+        type: 'text-input',
+        text: message,
+        payload: message
+      };
+      wsRef.current.send(JSON.stringify(payload));
+    } else {
+      setTimeout(() => {
+        VtuberState.addMessage('assistant', `⚠️ Không thể gửi tin nhắn! Server Open-LLM-VTuber tại địa chỉ "${vtuberWsUrl}" hiện không liên lạc được. Nhấp vào vòng xoay cài đặt để kiểm tra lại cấu hình.`);
+      }, 400);
+    }
+  };
+
+  // Browser Speech-to-Text Support (Vietnamese + English)
+  const handleMicrophoneToggle = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Nhận diện giọng nói không được hỗ trợ trên trình duyệt này! Hãy sử dụng Google Chrome / Microsoft Edge.');
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    const rec = new SpeechRecognition();
+    rec.lang = 'vi-VN'; // Defaults to Vietnamese
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => {
+      setIsListening(true);
+    };
+
+    rec.onresult = (event: any) => {
+      const resultText = event.results[0][0].transcript;
+      if (resultText) {
+        setChatText(resultText);
+      }
+    };
+
+    rec.onerror = (e: any) => {
+      console.warn('Speechrecognition failure:', e);
+      setIsListening(false);
+    };
+
+    rec.onend = () => {
+      setIsListening(false);
+    };
+
+    rec.start();
+  };
+
+  const modelObj = LIVE2D_MODELS.find(m => m.id === live2dModelId) || LIVE2D_MODELS[0];
+
+  return createPortal(
+    <div className="fixed bottom-6 right-6 z-50 flex items-end justify-center select-none pointer-events-auto filter drop-shadow-[0_10px_35px_rgba(236,72,153,0.35)]">
+      
+      {/* 1. COLLAPSIBLE AI CHAT PANEL (Slides left from Mascot) */}
+      <AnimatePresence>
+        {showChatPanel && !isMinimized && (
+          <motion.div
+            initial={{ opacity: 0, x: 50, scale: 0.92 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 50, scale: 0.92 }}
+            className="w-72 sm:w-85 h-112 rounded-3xl bg-[#0e0729]/95 border-2 border-pink-500/40 mr-4 shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl animate-fade-in"
+          >
+            {/* Header */}
+            <div className="px-4 py-3 bg-gradient-to-r from-pink-600/30 via-[#180e3c] to-purple-600/30 border-b border-pink-500/10 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-pink-500 animate-ping"></span>
+                <span className="text-[11px] font-black tracking-wider text-pink-300 uppercase font-sans">
+                  AI VTuber Chat Panel
+                </span>
+              </div>
+              <button
+                onClick={() => VtuberState.clearHistory()}
+                className="text-pink-300/60 hover:text-pink-100 text-[9px] font-extrabold uppercase bg-white/5 px-2 py-0.5 rounded-md hover:bg-white/10"
+                title="Xóa nhật ký trò chuyện"
+              >
+                Xóa Chat 🧹
+              </button>
+            </div>
+
+            {/* Connection Status Sub-bar */}
+            <div className="px-4 py-1.5 bg-[#140b33] border-b border-pink-500/5 flex items-center justify-between text-[10px] shrink-0">
+              <span className="text-white/40">Server: <code className="text-pink-400 font-mono text-[9px]">{vtuberWsUrl}</code></span>
+              {wsStatus === 'connected' ? (
+                <span className="text-emerald-400 font-black flex items-center gap-1 shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ĐÃ KẾT NỐI
+                </span>
+              ) : wsStatus === 'connecting' ? (
+                <span className="text-amber-400 font-black flex items-center gap-1 shrink-0 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span> ĐANG KẾT NỐI...
+                </span>
+              ) : (
+                <span className="text-rose-500 font-black flex items-center gap-1 shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> MẤT LIÊN LẠC
+                </span>
+              )}
+            </div>
+
+            {/* Chat Box Container */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 scrollbar-thin">
+              {chatHistory.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-4 text-white/30 text-xs">
+                  <span className="text-3xl mb-2">💬</span>
+                  <p className="font-bubble text-pink-200/40">Chưa có hội thoại nào!</p>
+                  <p className="text-[10px] scale-95 leading-relaxed mt-1">
+                    Hãy bật ứng dụng <strong className="text-pink-400/60">Open-LLM-VTuber</strong> cục bộ của bạn, hoặc gõ lời nhắn bên dưới để kiểm tra phản hồi học thuật!
+                  </p>
+                </div>
+              ) : (
+                chatHistory.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+                  >
+                    <div
+                      className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs font-bold leading-relaxed shadow ${
+                        msg.role === 'user'
+                          ? 'bg-pink-600 text-white rounded-br-none'
+                          : 'bg-[#1b1240] text-pink-100 border border-pink-400/10 rounded-bl-none'
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                    <span className="text-[8px] text-white/30 font-mono mt-1 px-1">
+                      {msg.time}
+                    </span>
+                  </div>
+                ))
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Input Toolbar */}
+            <div className="p-3 bg-[#130932]/95 border-t border-pink-500/10 flex items-center gap-2 shrink-0">
+              {/* Mic Icon */}
+              <button
+                onClick={handleMicrophoneToggle}
+                className={`p-2 rounded-xl transition-all border shrink-0 cursor-pointer ${
+                  isListening
+                    ? 'bg-rose-500 border-rose-400 text-white animate-pulse'
+                    : 'bg-white/5 hover:bg-white/10 text-pink-300 border-pink-500/20'
+                }`}
+                title={isListening ? 'Đang lắng nghe giọng nói... 🎤' : 'Nhấp để nói bằng tiếng Việt 🎤'}
+              >
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z" />
+                </svg>
+              </button>
+
+              {/* Input Box */}
+              <input
+                type="text"
+                value={chatText}
+                onChange={(e) => setChatText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
+                placeholder={isListening ? 'Đang lắng nghe senpai...' : 'Gửi lời nhắn cho bạn học thôi...'}
+                className="flex-1 bg-white/5 border border-pink-500/20 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-pink-300/30 focus:-pink-500 outline-none"
+              />
+
+              {/* Send Icon */}
+              <button
+                onClick={handleSendChat}
+                className="p-2.5 bg-pink-500 hover:bg-pink-600 rounded-xl text-white transition-all transform hover:scale-105 active:scale-95 shrink-0 cursor-pointer shadow-md"
+              >
+                <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                </svg>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 2. CHÍNH: LIVE2D FLOATING MASCOT BUBBLE CANVAS */}
+      <div className="flex flex-col items-center">
+        <div 
+          onClick={() => {
+            if (isMinimized) setIsMinimized(false);
+          }}
+          className={`${
+            isMinimized 
+              ? 'w-16 h-16 rounded-full cursor-pointer hover:scale-110 active:scale-95 animate-pulse border-2 border-pink-500 bg-[#0d0727]' 
+              : 'w-28 h-28 sm:w-36 sm:h-36 rounded-2xl hover:scale-102 border-4 border-pink-500 bg-[#100b2b]/95'
+          } overflow-hidden relative flex items-center justify-center p-0.5 transition-all duration-300`}
+        >
+          {/* Live2D Canvas, kept in DOM when active to keep script happy */}
+          <div className={`w-full h-full absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${!isMinimized ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <canvas 
+              id={uniqueCanvasId} 
+              className="w-full h-full object-contain cursor-pointer transition-transform duration-300"
+              style={(modelObj as any).canvasStyle || undefined}
+              width={(modelObj as any).canvasWidth || 200}
+              height={(modelObj as any).canvasHeight || 200}
+            />
+            {loadingModel && (
+              <div className="absolute inset-0 bg-[#100b2b]/95 flex flex-col items-center justify-center text-center p-2 z-10">
+                <RefreshCw className="w-5 h-5 text-pink-400 animate-spin mb-1.5" />
+                <span className="text-[8px] text-pink-300 font-bold font-mono tracking-wider animate-pulse">TRIỆU HỒI...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Minimized Bubble Status */}
+          {isMinimized && (
+            <div className="absolute inset-0 bg-gradient-to-tr from-pink-600 via-[#1e1445] to-violet-600 flex flex-col items-center justify-center rounded-full">
+              <span className="text-xl" role="img" aria-label="emoji">{modelObj.emoji}</span>
+              <span className="text-[8px] font-black text-pink-200/90 tracking-wide font-sans animate-pulse uppercase mt-0.5">Mở ✨</span>
+            </div>
+          )}
+
+          {/* Quick Settings Gear inside companion */}
+          {!isMinimized && (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenConfig();
+              }}
+              className="absolute top-1.5 right-1.5 bg-pink-600/90 hover:bg-pink-500 hover:scale-115 text-white p-1 rounded-lg transition-all cursor-pointer shadow-md border border-pink-400/45 z-20 group"
+              title="Đổi bạn học Live2D ✨"
+            >
+              <Settings className="w-3 h-3 group-hover:rotate-45 transition-transform" />
+            </button>
+          )}
+
+          {/* Collapsible Chat Box Toggle Button */}
+          {!isMinimized && (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowChatPanel(!showChatPanel);
+              }}
+              className={`absolute bottom-1.5 left-1.5 p-1 rounded-lg transition-all cursor-pointer shadow-md border z-20 ${
+                showChatPanel 
+                  ? 'bg-pink-600 hover:bg-pink-500 border-pink-400' 
+                  : 'bg-[#180e3c]/90 hover:bg-pink-600 border-pink-400/30 text-pink-300'
+              }`}
+              title="Trò chuyện AI (Open-LLM-VTuber) 💬"
+            >
+              <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                <path d="M21 15c0 1.1-.9 2-2 2H7l-4 4V5c0-1.1.9-2 2-2h14c1.1 0 2 .9 2 2v10z" />
+              </svg>
+            </button>
+          )}
+
+          {/* Minimize Button */}
+          {!isMinimized && (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMinimized(true);
+              }}
+              className="absolute bottom-1.5 right-1.5 bg-pink-600/90 hover:bg-pink-500 hover:scale-115 text-white p-1.5 rounded-lg transition-all cursor-pointer shadow-md border border-pink-400/45 z-20"
+              title="Thu nhỏ ✕"
+            >
+              <Minus className="w-3 h-3" />
+            </button>
+          )}
+
+          {/* Live glow dot indicator for VTuber connections */}
+          {vtuberEnabled && !isMinimized && (
+            <div 
+              className={`absolute top-1.5 left-1.5 w-2.5 h-2.5 rounded-full border border-black/40 z-20 shadow-sm ${
+                wsStatus === 'connected' ? 'bg-emerald-400 animate-pulse' :
+                wsStatus === 'connecting' ? 'bg-amber-400 animate-pulse' : 'bg-rose-500'
+              }`}
+              title={`Trạng thái Open-LLM-VTuber Connection: ${wsStatus}`}
+            />
+          )}
+        </div>
+
+        {/* Companion Nameplate */}
+        {!isMinimized && (
+          <div className="mt-2.5 bg-gradient-to-r from-pink-500 to-pink-600 text-white text-[9px] px-3 py-1 rounded-full font-black shadow-md border border-pink-400 tracking-wide uppercase select-none transition-all duration-300 animate-fade-in flex items-center gap-1">
+            {getMascotName()} {getAvatarEmoji()}
+            {vtuberEnabled && (
+              <span className="bg-white/25 text-[7px] font-bold px-1 rounded uppercase tracking-tighter">AI</span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function MascotConfigPortal() {
+  const [show, setShow] = useState(MascotState.showConfig);
+  const [mascotType, setMascotType] = useState(MascotState.type);
+  const [live2dModelId, setLive2dModelId] = useState(MascotState.modelId);
+  const [vtuberEnabled, setVtuberEnabled] = useState(MascotState.vtuberEnabled);
+  const [vtuberWsUrl, setVtuberWsUrl] = useState(MascotState.vtuberWsUrl);
+  const [wsStatus, setWsStatus] = useState(VtuberState.status);
+  const [activeTab, setActiveTab] = useState<'classic' | 'live2d' | 'vtuber'>('live2d');
+
+  useEffect(() => {
+    const unsubMascot = MascotState.subscribe(() => {
+      setShow(MascotState.showConfig);
+      setMascotType(MascotState.type);
+      setLive2dModelId(MascotState.modelId);
+      setVtuberEnabled(MascotState.vtuberEnabled);
+      setVtuberWsUrl(MascotState.vtuberWsUrl);
+    });
+    const unsubVtuber = VtuberState.subscribe(() => {
+      setWsStatus(VtuberState.status);
+    });
+    return () => {
+      unsubMascot();
+      unsubVtuber();
+    };
+  }, []);
+
+  if (!show) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#070416]/80 p-4 backdrop-blur-md">
+      <div className="w-full max-w-xl bg-[#0f0a28]/95 border-2 border-pink-500/40 rounded-3xl shadow-2xl overflow-hidden text-left flex flex-col max-h-[90vh]">
+        
+        {/* Modal Header */}
+        <div className="p-5 border-b border-pink-500/10 flex items-center justify-between bg-gradient-to-r from-pink-600/20 to-purple-600/20">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">✨</span>
+            <h3 className="text-pink-300 font-black text-sm uppercase tracking-widest font-sans">
+              Cài Đặt Bạn Đồng Hành Koko
+            </h3>
+          </div>
+          <button 
+            onClick={() => { MascotState.showConfig = false; }}
+            className="text-white/60 hover:text-white p-1 hover:bg-white/10 rounded-lg transition-all cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Modal Nav Tabs */}
+        <div className="px-5 py-2.5 bg-[#140c33] border-b border-pink-500/5 flex items-center gap-1 text-xs font-black shrink-0 font-sans">
+          <button
+            onClick={() => setActiveTab('classic')}
+            className={`px-3 py-1.5 rounded-lg transition-all uppercase tracking-wider cursor-pointer ${
+              activeTab === 'classic' ? 'bg-pink-600 text-white shadow' : 'text-pink-300/65 hover:text-pink-200'
+            }`}
+          >
+            Koko Core 🌸
+          </button>
+          <button
+            onClick={() => setActiveTab('live2d')}
+            className={`px-3 py-1.5 rounded-lg transition-all uppercase tracking-wider cursor-pointer ${
+              activeTab === 'live2d' ? 'bg-pink-600 text-white shadow' : 'text-pink-300/65 hover:text-pink-200'
+            }`}
+          >
+            Live2D Widget ✨
+          </button>
+          <button
+            onClick={() => setActiveTab('vtuber')}
+            className={`px-3 py-1.5 rounded-lg transition-all uppercase tracking-wider cursor-pointer ${
+              activeTab === 'vtuber' ? 'bg-pink-600 text-white shadow animate-pulse' : 'text-pink-300/65 hover:text-pink-200'
+            }`}
+          >
+            Open-LLM-VTuber AI 🤖
+          </button>
+        </div>
+
+        {/* Modal Content Arena */}
+        <div className="flex-1 p-6 overflow-y-auto space-y-5">
+          {activeTab === 'classic' && (
+            <div className="space-y-4 text-center py-6 text-white/80">
+              <span className="text-5xl block animate-pulse">🌸</span>
+              <h4 className="text-pink-300 font-extrabold text-base">Bản Sắc Koko-chan Cổ Điển</h4>
+              <p className="text-xs leading-relaxed text-pink-200/70 max-w-sm mx-auto font-sans font-bold">
+                Sử dụng hình ảnh vẽ tay Koko-chan nhẹ nhàng, thân thiện và tiết kiệm tài nguyên trình duyệt tối đa.
+              </p>
+              <button
+                onClick={() => {
+                  MascotState.type = 'static';
+                  MascotState.showConfig = false;
+                }}
+                className={`px-6 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider cursor-pointer transition-all border ${
+                  mascotType === 'static' 
+                    ? 'bg-pink-600 border-pink-400 text-white shadow-lg shadow-pink-600/30' 
+                    : 'bg-white/5 border-white/10 text-pink-300 hover:bg-white/10'
+                }`}
+              >
+                {mascotType === 'static' ? 'ĐANG KÍCH HOẠT ✓' : 'Sử Dụng Bản Cổ Điển'}
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'live2d' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-pink-500/5 pb-3">
+                <span className="text-xs font-bold text-pink-200 font-sans">Kích hoạt Bạn Học Live2D</span>
+                <button
+                  onClick={() => {
+                    MascotState.type = mascotType === 'live2d' ? 'static' : 'live2d';
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl font-black text-[10px] uppercase cursor-pointer border tracking-wider transition-all ${
+                    mascotType === 'live2d'
+                      ? 'bg-emerald-600 border-emerald-400 text-white'
+                      : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+                  }`}
+                >
+                  {mascotType === 'live2d' ? 'Bật Hoạt Họa' : 'Tắt Hoạt Họa'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1.5 font-sans">
+                {LIVE2D_MODELS.map((model) => (
+                  <div
+                    key={model.id}
+                    onClick={() => {
+                      MascotState.modelId = model.id;
+                      MascotState.type = 'live2d'; // Auto enable live2d
+                    }}
+                    className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3 bg-[#130b2c] ${
+                      live2dModelId === model.id && mascotType === 'live2d'
+                        ? 'border-pink-500 bg-pink-950/20'
+                        : 'border-white/5 hover:border-pink-500/30'
+                    }`}
+                  >
+                    <span className="text-2xl mt-0.5 shrink-0" role="img">{model.emoji}</span>
+                    <div className="space-y-0.5">
+                      <h5 className="text-white text-xs font-black tracking-wide">{model.name}</h5>
+                      <p className="text-[10px] text-pink-200/50 leading-relaxed font-bold">{model.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'vtuber' && (
+            <div className="space-y-5">
+              <div className="bg-pink-950/10 border border-pink-500/10 p-4 rounded-2xl space-y-2 font-sans">
+                <h4 className="text-pink-300 font-extrabold text-xs tracking-wider uppercase flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse"></span>
+                  Open-LLM-VTuber Integration (Tích Hợp AI)
+                </h4>
+                <p className="text-[11px] text-pink-200/60 leading-relaxed font-bold">
+                  Dự án mã nguồn mở <code className="text-pink-400 font-mono">open-llm-vtuber</code> cho phép bạn điều khiển các mô hình nhân vật hoạt họa (Live2D) bằng giọng nói và trí tuệ nhân tạo (LLM). Khi bật tính năng này, Koko sẽ kết nối với máy chủ nội bộ của bạn để tự động nói và hiển thị câu trả lời thông qua trí tuệ nhân tạo!
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between border-b border-pink-500/5 pb-3 pt-1 font-sans">
+                <div className="space-y-0.5">
+                  <span className="text-xs font-black text-pink-200 block">Kích Hoạt Liên Kết Trò Chuyện VTuber</span>
+                  <span className="text-[10px] text-white/30 block">Mở bảng chat nổi ở góc phải khi kết nối thành công</span>
+                </div>
+                <button
+                  onClick={() => {
+                    MascotState.vtuberEnabled = !vtuberEnabled;
+                  }}
+                  className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase cursor-pointer border tracking-wider transition-all shrink-0 ${
+                    vtuberEnabled
+                      ? 'bg-pink-500 border-pink-400 text-white'
+                      : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'
+                  }`}
+                >
+                  {vtuberEnabled ? 'ĐANG BẬT LIÊN KẾT ✓' : 'CHƯA LIÊN KẾT'}
+                </button>
+              </div>
+
+              <div className="space-y-2 font-sans">
+                <label className="text-[11px] font-black text-pink-300/80 uppercase tracking-widest block">
+                  Địa Chỉ WebSocket API:
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={vtuberWsUrl}
+                    onChange={(e) => {
+                      MascotState.vtuberWsUrl = e.target.value;
+                    }}
+                    placeholder="ws://localhost:8000/api/v1/client-interface"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-pink-100 outline-none focus:-pink-500 focus:border-pink-500/50 font-mono font-bold"
+                  />
+                  <div className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase flex items-center justify-center shrink-0 border border-white/10 bg-[#160d3c] ${
+                    wsStatus === 'connected' ? 'text-emerald-400' :
+                    wsStatus === 'connecting' ? 'text-amber-400' : 'text-rose-400'
+                  }`}>
+                    {wsStatus === 'connected' ? 'Connected' :
+                     wsStatus === 'connecting' ? 'Connecting' : 'Disconnected'}
+                  </div>
+                </div>
+                <span className="text-[9px] text-white/20 block font-bold leading-normal">
+                  * Mặc định là <code className="text-pink-400/80 font-mono">ws://localhost:8000/api/v1/client-interface</code>. Để thay đổi, hãy nhập API WebSocket URL của cấu hình VTuber của bạn.
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer */}
+        <div className="p-5 border-t border-pink-500/10 bg-[#120a2e] text-center flex items-center justify-center shrink-0">
+          <button
+            onClick={() => { MascotState.showConfig = false; }}
+            className="px-8 py-2.5 bg-pink-500 hover:bg-pink-600 rounded-2xl text-white text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-md"
+          >
+            Hoàn tất thiết lập
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 function KokoMascot({ expression, text }: { expression: 'happy' | 'smile' | 'cheer' | 'sad' | 'surprised'; text: string }) {
+  const [mascotType, setMascotType] = useState(MascotState.type);
+  const [live2dModelId, setLive2dModelId] = useState(MascotState.modelId);
+  const [vtuberEnabled, setVtuberEnabled] = useState(MascotState.vtuberEnabled);
+  const [vtuberSpeech, setVtuberSpeech] = useState(VtuberState.speechText);
+
+  useEffect(() => {
+    const unsubMascot = MascotState.subscribe(() => {
+      setMascotType(MascotState.type);
+      setLive2dModelId(MascotState.modelId);
+      setVtuberEnabled(MascotState.vtuberEnabled);
+    });
+    const unsubVtuber = VtuberState.subscribe(() => {
+      setVtuberSpeech(VtuberState.speechText);
+    });
+    return () => {
+      unsubMascot();
+      unsubVtuber();
+    };
+  }, []);
+
+  const getMascotName = () => {
+    if (mascotType === 'live2d') {
+      const model = LIVE2D_MODELS.find(m => m.id === live2dModelId);
+      return model ? model.name : 'Bạn Học Ảo';
+    }
+    return 'Koko-chan';
+  };
+
   const getAvatarEmoji = () => {
     switch (expression) {
       case 'happy': return '🌸';
@@ -156,33 +1211,69 @@ function KokoMascot({ expression, text }: { expression: 'happy' | 'smile' | 'che
   };
 
   return (
-    <div className="relative flex flex-col md:flex-row items-center gap-4 bg-[#1e1445]/90 border-2 border-pink-400/40 p-5 rounded-3xl shadow-lg anime-shadow-pink mb-8 animate-cute-pulse text-left w-full max-w-5xl mx-auto backdrop-blur-md">
-      <span className="absolute -top-3 -right-3 text-2xl animate-spin" style={{ animationDuration: '8s' }}>⭐</span>
-      <span className="absolute -bottom-3 -left-3 text-2xl animate-bounce" style={{ animationDuration: '5s' }}>🌸</span>
+    <>
+      <div className="relative flex flex-col md:flex-row items-center gap-4 bg-[#1e1445]/90 border-2 border-pink-400/40 p-5 rounded-3xl shadow-lg anime-shadow-pink mb-8 text-left w-full max-w-5xl mx-auto backdrop-blur-md">
+        <span className="absolute -top-3 -right-3 text-2xl animate-spin" style={{ animationDuration: '8s' }}>⭐</span>
+        <span className="absolute -bottom-3 -left-3 text-2xl animate-bounce" style={{ animationDuration: '5s' }}>🌸</span>
 
-      <div className="relative shrink-0">
-        <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-pink-400 shadow-md bg-pink-100">
-          <img 
-            src={MASCOT_URL} 
-            alt="Koko-chan" 
-            className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-          />
+        <div className="relative shrink-0 flex flex-col items-center">
+          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-pink-400 shadow-md bg-[#100b2b] relative flex items-center justify-center">
+            {/* Static mascot image */}
+            <img 
+              src={MASCOT_URL} 
+              alt="Koko-chan" 
+              className="w-full h-full object-cover absolute inset-0"
+              referrerPolicy="no-referrer"
+            />
+
+            {/* Quick Config Settings Button right inside the card */}
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                MascotState.showConfig = true;
+              }}
+              className="absolute top-1.5 right-1.5 bg-pink-600/90 hover:bg-pink-500 hover:scale-115 text-white p-1 rounded-lg transition-all cursor-pointer shadow-md border border-pink-300/30 group z-10"
+              title="Đổi bạn học Live2D ✨"
+            >
+              <Settings className="w-3.5 h-3.5 group-hover:rotate-45 transition-transform" />
+            </button>
+          </div>
+
+          <div className="absolute -bottom-2.5 bg-pink-500 text-white text-[10px] px-2.5 py-0.5 rounded-full font-black shadow-md border border-pink-300 shrink-0 z-10 tracking-wide">
+            {getMascotName()} {getAvatarEmoji()}
+          </div>
         </div>
-        <div className="absolute -bottom-2 -right-2 bg-pink-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-md border border-pink-300">
-          Koko {getAvatarEmoji()}
+
+        <div className="flex-1 text-center md:text-left mt-3 md:mt-0">
+          <h4 className="text-pink-300 font-black text-xs tracking-widest uppercase mb-1.5 flex items-center justify-center md:justify-start gap-1.5">
+            <span>{getMascotName()} • Bạn Đồng Hành</span>
+            {mascotType === 'live2d' ? (
+              <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 text-[9px] font-black px-1.5 py-0.5 rounded-md border border-emerald-500/20 uppercase tracking-widest font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Live2D Hoạt Họa
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 bg-pink-500/10 text-pink-400 text-[9px] font-black px-1.5 py-0.5 rounded-md border border-pink-500/20 uppercase tracking-widest font-mono">
+                Classic Ảnh Tĩnh
+              </span>
+            )}
+          </h4>
+          <p className="text-pink-100 font-bold text-sm md:text-base leading-relaxed tracking-wide font-bubble">
+            "{vtuberEnabled ? vtuberSpeech : text}"
+          </p>
         </div>
       </div>
-      <div className="flex-1 text-center md:text-left">
-        <h4 className="text-pink-300 font-bold text-sm tracking-widest uppercase mb-1 flex items-center justify-center md:justify-start gap-1">
-          <span>Koko-chan • Trợ lý ma thuật</span>
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-        </h4>
-        <p className="text-pink-100 font-semibold text-sm md:text-base leading-relaxed tracking-wide font-bubble">
-          "{text}"
-        </p>
-      </div>
-    </div>
+
+      {/* Portal items */}
+      <MascotConfigPortal />
+      {mascotType === 'live2d' && (
+        <Live2DCompanion
+          live2dModelId={live2dModelId}
+          getMascotName={getMascotName}
+          getAvatarEmoji={getAvatarEmoji}
+          onOpenConfig={() => { MascotState.showConfig = true; }}
+        />
+      )}
+    </>
   );
 }
 
