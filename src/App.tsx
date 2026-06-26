@@ -22,6 +22,7 @@ import {
   Cloud,
   CloudUpload,
   CloudDownload,
+  Download,
   LogOut,
   RefreshCw,
   User,
@@ -1996,6 +1997,91 @@ export default function App() {
     e.target.value = '';
   };
 
+  const exportStudySetToExcel = (set: StudySet) => {
+    try {
+      const wb = xlsx.utils.book_new();
+      
+      const wsData = set.questions.map((q, idx) => {
+        const correctOpt = q.options.find(o => o.id === q.correctId);
+        return {
+          "STT": idx + 1,
+          "Từ vựng": correctOpt ? correctOpt.text : "",
+          "Từ loại": correctOpt ? correctOpt.partOfSpeech : "",
+          "Định nghĩa": q.definition,
+          "Lựa chọn 1": q.options[0]?.text || "",
+          "Lựa chọn 2": q.options[1]?.text || "",
+          "Lựa chọn 3": q.options[2]?.text || "",
+          "Lựa chọn 4": q.options[3]?.text || "",
+          "Đáp án đúng": correctOpt ? correctOpt.text : ""
+        };
+      });
+      
+      const ws = xlsx.utils.json_to_sheet(wsData);
+      
+      // Auto-size columns for better readability
+      const maxLens = [5, 20, 10, 30, 15, 15, 15, 15, 15];
+      ws['!cols'] = maxLens.map(w => ({ wch: w }));
+      
+      xlsx.utils.book_append_sheet(wb, ws, "Học phần");
+      xlsx.writeFile(wb, `${set.title.replace(/[/\\?%*:|"<>[\]\s]/g, '_')}_Hoc_Phan.xlsx`);
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      alert("Đã xảy ra lỗi khi xuất học phần ra Excel!");
+    }
+  };
+
+  const exportAllStudySetsToExcel = () => {
+    if (studySets.length === 0) {
+      alert("Không có học phần nào để xuất!");
+      return;
+    }
+    try {
+      const wb = xlsx.utils.book_new();
+      
+      studySets.forEach((set, setIdx) => {
+        const wsData = set.questions.map((q, idx) => {
+          const correctOpt = q.options.find(o => o.id === q.correctId);
+          return {
+            "STT": idx + 1,
+            "Từ vựng": correctOpt ? correctOpt.text : "",
+            "Từ loại": correctOpt ? correctOpt.partOfSpeech : "",
+            "Định nghĩa": q.definition,
+            "Lựa chọn 1": q.options[0]?.text || "",
+            "Lựa chọn 2": q.options[1]?.text || "",
+            "Lựa chọn 3": q.options[2]?.text || "",
+            "Lựa chọn 4": q.options[3]?.text || "",
+            "Đáp án đúng": correctOpt ? correctOpt.text : ""
+          };
+        });
+        
+        const ws = xlsx.utils.json_to_sheet(wsData);
+        const maxLens = [5, 20, 10, 30, 15, 15, 15, 15, 15];
+        ws['!cols'] = maxLens.map(w => ({ wch: w }));
+        
+        // Sheet names must be unique and <= 31 characters, and not contain / \ ? * : [ ]
+        let sheetName = set.title.replace(/[/\\?%*:|"<>[\]]/g, '').trim();
+        if (sheetName.length > 25) {
+          sheetName = sheetName.substring(0, 25);
+        }
+        sheetName = sheetName || `Hoc_Phan_${setIdx + 1}`;
+        
+        // Ensure uniqueness
+        let finalSheetName = sheetName;
+        let count = 1;
+        while (wb.SheetNames.includes(finalSheetName)) {
+          finalSheetName = `${sheetName.substring(0, 20)}_${count++}`;
+        }
+        
+        xlsx.utils.book_append_sheet(wb, ws, finalSheetName);
+      });
+      
+      xlsx.writeFile(wb, `Phong_Hoc_Ma_Thuat_Tat_Ca_Hoc_Phan.xlsx`);
+    } catch (error) {
+      console.error("Error exporting all to Excel:", error);
+      alert("Đã xảy ra lỗi khi xuất tất cả học phần ra Excel!");
+    }
+  };
+
   const handleRestart = () => {
     const currentSet = studySets.find(s => s.id === currentSetId);
     if (currentSet) {
@@ -2309,7 +2395,17 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-end flex-wrap">
+            {studySets.length > 0 && (
+              <button 
+                onClick={exportAllStudySetsToExcel}
+                className="bg-[#1f1642] hover:bg-[#281d54] text-pink-300 hover:text-pink-100 border-2 border-pink-500/30 px-5 py-2.5 rounded-2xl font-extrabold transition-all flex items-center gap-2 shadow-lg hover:-translate-y-0.5 duration-150 text-sm cursor-pointer"
+                title="Xuất tất cả học phần ra file Excel (.xlsx)"
+              >
+                <Download className="w-4 h-4 text-pink-400" /> Xuất tất cả 📥
+              </button>
+            )}
+
             <button 
               onClick={() => {
                 setCurrentSetId(null);
@@ -2600,6 +2696,16 @@ export default function App() {
                       </div>
                     ) : (
                       <div className="flex items-center gap-1">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            exportStudySetToExcel(set);
+                          }}
+                          className="text-white/40 hover:text-emerald-400 p-2 rounded-lg hover:bg-emerald-500/10 transition-colors"
+                          title="Xuất học phần ra Excel (.xlsx)"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
