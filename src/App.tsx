@@ -63,6 +63,7 @@ import {
 
 // @ts-ignore
 import MASCOT_URL from './assets/images/anime_mascot_1781746439261.jpg';
+import AIGeneratorView from './components/AIGeneratorView';
 
 interface Option {
   id: number;
@@ -1332,7 +1333,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'quiz' | 'flashcard' | 'written' | 'listening' | 'editor' | 'summary'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'quiz' | 'flashcard' | 'written' | 'listening' | 'editor' | 'summary' | 'ai_generator'>('dashboard');
   const [writtenAnswer, setWrittenAnswer] = useState('');
   const [showWrittenFeedback, setShowWrittenFeedback] = useState(false);
   const [isWrittenCorrect, setIsWrittenCorrect] = useState<boolean | null>(null);
@@ -1854,6 +1855,23 @@ export default function App() {
   const speak = (text: string) => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
+
+    try {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        const savedVoiceURI = localStorage.getItem('koko_selected_voice_uri');
+        if (savedVoiceURI) {
+          const voices = window.speechSynthesis.getVoices();
+          const found = voices.find(v => v.voiceURI === savedVoiceURI);
+          if (found) {
+            utterance.voice = found;
+            utterance.lang = found.lang;
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Error setting custom voice in main app:", e);
+    }
+
     window.speechSynthesis.speak(utterance);
   };
 
@@ -2634,6 +2652,17 @@ export default function App() {
                           Luyện nghe 🎧
                         </button>
                       </div>
+                      
+                      <button 
+                        onClick={() => {
+                          setCurrentSetId(set.id);
+                          setView('ai_generator');
+                        }}
+                        className="w-full bg-gradient-to-r from-pink-600/30 to-purple-600/30 hover:from-pink-500 hover:to-purple-500 text-pink-200 hover:text-white text-xs font-black py-3 rounded-xl transition-all border-2 border-pink-500/30 text-center hover:scale-[1.01] duration-150 cursor-pointer flex items-center justify-center gap-1.5 shadow-md hover:shadow-pink-500/20"
+                      >
+                        Sinh Bài Đọc & Nghe AI 🔮
+                      </button>
+
                       {set.needsReview && set.needsReview.length > 0 && (
                         <button 
                           onClick={() => {
@@ -2889,6 +2918,22 @@ export default function App() {
         </main>
       </div>
     );
+  }
+
+  if (view === 'ai_generator') {
+    const activeSet = studySets.find(s => s.id === currentSetId);
+    if (activeSet) {
+      return (
+        <AIGeneratorView 
+          studySet={activeSet}
+          onBack={() => setView('dashboard')}
+          speakText={speak}
+        />
+      );
+    } else {
+      setView('dashboard');
+      return null;
+    }
   }
 
   if (view === 'flashcard') {
