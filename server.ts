@@ -33,18 +33,17 @@ function getAiClient() {
 
 // Helper function to generate content with automatic retries and fallback models
 async function generateContentWithRetry(ai: GoogleGenAI, options: any) {
-  // A comprehensive list of reliable Gemini models
+  // A comprehensive list of reliable Gemini models (excluding prohibited/deprecated gemini-1.5 models)
   const modelsToTry = [
+    "gemini-3.5-flash",
     "gemini-2.5-flash",
-    "gemini-1.5-flash",
-    "gemini-2.5-pro",
-    "gemini-1.5-pro"
+    "gemini-2.5-pro"
   ];
   let lastError: any = null;
 
   for (const model of modelsToTry) {
-    let attempts = 4;
-    let delay = 1200; // slightly longer initial delay
+    let attempts = 2; // Reduce to 2 attempts per model to failover quickly and prevent gateway timeout!
+    let delay = 1000;
     while (attempts > 0) {
       try {
         console.log(`Attempting content generation using model: ${model} (${attempts} attempts remaining)`);
@@ -67,11 +66,11 @@ async function generateContentWithRetry(ai: GoogleGenAI, options: any) {
         attempts--;
         if (attempts > 0) {
           // Add random jitter to retry delay to avoid concurrent spikes
-          const jitter = Math.floor(Math.random() * 800) - 400; // -400ms to +400ms
-          const sleepDuration = Math.max(500, delay + jitter);
+          const jitter = Math.floor(Math.random() * 400) - 200; // -200ms to +200ms
+          const sleepDuration = Math.max(400, delay + jitter);
           console.log(`Retrying model ${model} in ${sleepDuration}ms...`);
           await new Promise(resolve => setTimeout(resolve, sleepDuration));
-          delay *= 2; // exponential backoff
+          delay *= 1.5; // milder exponential backoff
         }
       }
     }

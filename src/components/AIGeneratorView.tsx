@@ -293,12 +293,22 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
         })
       });
 
-      if (!response.ok) {
-        const errJson = await response.json();
-        throw new Error(errJson.error || "Gặp sự cố khi sinh nội dung.");
+      const responseText = await response.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseErr) {
+        console.error("Non-JSON response received:", responseText);
+        if (response.status === 504 || response.status === 502) {
+          throw new Error("Yêu cầu bị quá tải thời gian chờ (Gateway Timeout/Error). Senpai vui lòng thử lại sau giây lát nhen! 💕");
+        }
+        throw new Error("Phản hồi từ máy chủ không hợp lệ. Senpai vui lòng thử lại nhen!");
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "Gặp sự cố khi sinh nội dung.");
+      }
+
       setExercise(data);
       setActiveTab('reading');
     } catch (err: any) {
