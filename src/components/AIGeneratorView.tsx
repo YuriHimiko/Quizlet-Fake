@@ -270,6 +270,10 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
       setError("Senpai hãy chọn ít nhất 1 từ vựng để Koko tích hợp vào bài học nhen! ✨");
       return;
     }
+    if (selectedWords.length > 8) {
+      setError("Senpai ơi, chỉ nên chọn tối đa 8 từ vựng mỗi lần tạo thôi nhen! Việc này giúp Koko viết một câu chuyện thật tự nhiên, mạch lạc và tránh bị quá tải hệ thống đó ạ! 💕");
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -299,8 +303,8 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
         data = JSON.parse(responseText);
       } catch (parseErr) {
         console.error("Non-JSON response received:", responseText);
-        if (response.status === 504 || response.status === 502) {
-          throw new Error("Yêu cầu bị quá tải thời gian chờ (Gateway Timeout/Error). Senpai vui lòng thử lại sau giây lát nhen! 💕");
+        if (response.status === 504 || response.status === 502 || response.status === 503 || response.status === 500) {
+          throw new Error("Máy chủ AI đang bận hoặc bị quá tải thời gian chờ (Timeout/Overload). Senpai vui lòng thử lại sau giây lát nhen! 💕");
         }
         throw new Error("Phản hồi từ máy chủ không hợp lệ. Senpai vui lòng thử lại nhen!");
       }
