@@ -303,8 +303,9 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
         data = JSON.parse(responseText);
       } catch (parseErr) {
         console.error("Non-JSON response received:", responseText);
-        if (response.status === 504 || response.status === 502 || response.status === 503 || response.status === 500) {
-          throw new Error("Máy chủ AI đang bận hoặc bị quá tải thời gian chờ (Timeout/Overload). Senpai vui lòng thử lại sau giây lát nhen! 💕");
+        const isHtml = responseText.trim().startsWith("<") || responseText.includes("<!DOCTYPE") || responseText.includes("<html");
+        if (isHtml || !response.ok || [500, 502, 503, 504, 404, 429].includes(response.status)) {
+          throw new Error("Máy chủ AI đang bận hoặc kết nối bị gián đoạn. Senpai vui lòng thử lại sau giây lát nhen! 💕");
         }
         throw new Error("Phản hồi từ máy chủ không hợp lệ. Senpai vui lòng thử lại nhen!");
       }

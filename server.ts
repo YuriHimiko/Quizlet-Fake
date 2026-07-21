@@ -33,46 +33,34 @@ function getAiClient() {
 
 // Helper function to generate content with automatic retries and fallback models
 async function generateContentWithRetry(ai: GoogleGenAI, options: any) {
-  // A comprehensive list of reliable Gemini models (excluding prohibited/deprecated gemini-1.5 models)
+  // A comprehensive list of reliable Gemini models.
+  // We do exactly 1 attempt per model to fail over instantly and avoid HTTP gateway timeouts!
   const modelsToTry = [
     "gemini-3.5-flash",
-    "gemini-2.5-flash",
-    "gemini-3.1-flash-lite"
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash"
   ];
   let lastError: any = null;
 
   for (const model of modelsToTry) {
-    let attempts = 2; // Reduce to 2 attempts per model to failover quickly and prevent gateway timeout!
-    let delay = 1000;
-    while (attempts > 0) {
-      try {
-        console.log(`Attempting content generation using model: ${model} (${attempts} attempts remaining)`);
-        const response = await ai.models.generateContent({
-          ...options,
-          model: model,
-        });
-        return response;
-      } catch (error: any) {
-        lastError = error;
-        const errMessage = error.message || String(error);
-        console.warn(`Error with model ${model}:`, errMessage);
+    try {
+      console.log(`Attempting content generation using model: ${model}`);
+      const response = await ai.models.generateContent({
+        ...options,
+        model: model,
+      });
+      return response;
+    } catch (error: any) {
+      lastError = error;
+      const errMessage = error.message || String(error);
+      console.warn(`Error with model ${model}:`, errMessage);
 
-        // If it's a client configuration error (e.g., 400 Bad Request, 403 Forbidden, 401 Unauthorized),
-        // don't waste time retrying this model or others because the credentials/arguments are invalid.
-        if (errMessage.includes("400") || errMessage.includes("403") || errMessage.includes("401")) {
-          throw error;
-        }
-
-        attempts--;
-        if (attempts > 0) {
-          // Add random jitter to retry delay to avoid concurrent spikes
-          const jitter = Math.floor(Math.random() * 400) - 200; // -200ms to +200ms
-          const sleepDuration = Math.max(400, delay + jitter);
-          console.log(`Retrying model ${model} in ${sleepDuration}ms...`);
-          await new Promise(resolve => setTimeout(resolve, sleepDuration));
-          delay *= 1.5; // milder exponential backoff
-        }
+      // If it's a client configuration error (e.g., 400 Bad Request, 403 Forbidden, 401 Unauthorized),
+      // don't waste time retrying other models because the credentials/arguments are invalid.
+      if (errMessage.includes("400") || errMessage.includes("403") || errMessage.includes("401")) {
+        throw error;
       }
+      // Otherwise, instantly failover to the next model!
     }
   }
 
