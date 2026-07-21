@@ -34,11 +34,13 @@ function getAiClient() {
 // Helper function to generate content with automatic retries and fallback models
 async function generateContentWithRetry(ai: GoogleGenAI, options: any) {
   // A comprehensive list of reliable Gemini models.
-  // We do exactly 1 attempt per model to fail over instantly and avoid HTTP gateway timeouts!
+  // We prioritize gemini-2.5-flash as the most widely supported, stable production model for structured schemas,
+  // and we do 1 attempt per model to fail over instantly if needed!
   const modelsToTry = [
-    "gemini-3.5-flash",
     "gemini-3.1-flash-lite",
-    "gemini-2.5-flash"
+    "gemini-3.5-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro"
   ];
   let lastError: any = null;
 
@@ -55,12 +57,11 @@ async function generateContentWithRetry(ai: GoogleGenAI, options: any) {
       const errMessage = error.message || String(error);
       console.warn(`Error with model ${model}:`, errMessage);
 
-      // If it's a client configuration error (e.g., 400 Bad Request, 403 Forbidden, 401 Unauthorized),
-      // don't waste time retrying other models because the credentials/arguments are invalid.
-      if (errMessage.includes("400") || errMessage.includes("403") || errMessage.includes("401")) {
+      // Only abort failover if it is strictly an invalid API key (401)
+      if (errMessage.includes("401")) {
         throw error;
       }
-      // Otherwise, instantly failover to the next model!
+      // Otherwise (including 400 model-not-found or 403 model-forbidden or rate limits), instantly failover!
     }
   }
 
@@ -87,7 +88,7 @@ app.post("/api/ai/generate-exercise", async (req, res) => {
       ? `Professor: Good morning, class. Today, let's explore this topic deeply. We must **prevent** errors and maintain absolute **elegance** in our studies... [continue for several long paragraphs in this manner]`
       : `Teacher: Good morning, class!\nYuki: Hi! Today I **prefer** studying art because of its **elegance**.`;
 
-    const prompt = `Create an English reading passage and an English listening script about the topic: "${topic}".
+    const prompt = `Create a highly concise English reading passage and a short English listening script about the topic: "${topic}".
     You MUST incorporate the following vocabulary words naturally in both the reading passage and the listening script.
     Whenever a vocabulary word is used (including minor tense variations or plurals), you MUST wrap it in markdown bold like **word**.
     
@@ -97,6 +98,8 @@ app.post("/api/ai/generate-exercise", async (req, res) => {
     ${formatInstruction}
 
     Please ensure the language level is engaging but accessible (approx. CEFR B1/B2 level).
+    Keep the content extremely concise to minimize generation time (reading passage under 100 words, listening script under 80 words).
+    Keep multiple-choice questions, options, and explanations extremely short and direct.
     The response must strictly follow the JSON schema requested.
 
     CRITICAL: For the "listening" script field, do NOT output serialized JSON objects or raw code syntax inside the string. It MUST be a standard, beautifully readable dialogue/monologue with plain speaker names, e.g.:
@@ -106,33 +109,33 @@ app.post("/api/ai/generate-exercise", async (req, res) => {
     const response = await generateContentWithRetry(ai, {
       contents: prompt,
       config: {
-        systemInstruction: "You are an expert ESL (English as a Second Language) content creator. You create engaging learning materials (reading passages and listening scripts) centered around specific vocabulary words. Always highlight the targeted vocabulary words using markdown bold format **word**.",
+        systemInstruction: "You are an expert ESL (English as a Second Language) content creator. You create highly concise, engaging learning materials (reading passages and listening scripts) centered around specific vocabulary words. Always highlight the targeted vocabulary words using markdown bold format **word**.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
             reading: {
               type: Type.STRING,
-              description: "The reading passage in English. 2-3 paragraphs. Vocab words from the list must be highlighted with **word**."
+              description: "Extremely concise English reading passage. Max 2 short paragraphs, under 100 words total. Vocab words from the list must be highlighted with **word**."
             },
             listening: {
               type: Type.STRING,
-              description: "The listening script in English, written as an interactive dialogue/monologue with speaker names. DO NOT write JSON or code structures. Format strictly as plain text, for example: 'Teacher: Hello class! Today we will learn **elegance**.' on new lines."
+              description: "Extremely concise English listening script as dialogue/monologue with speaker names, under 80 words total. Format strictly as plain text on new lines. Vocab words must be highlighted with **word**."
             },
             questions: {
               type: Type.ARRAY,
-              description: "Exactly 5 comprehension multiple-choice questions in English about the reading or listening passages.",
+              description: "Exactly 5 very short comprehension multiple-choice questions about the reading or listening passages.",
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  question: { type: Type.STRING, description: "The multiple choice question." },
+                  question: { type: Type.STRING, description: "Very short question." },
                   options: {
                     type: Type.ARRAY,
                     items: { type: Type.STRING },
-                    description: "Exactly 4 answer choices."
+                    description: "Exactly 4 short options."
                   },
-                  correctIndex: { type: Type.INTEGER, description: "0-based index of the correct answer (0 to 3)." },
-                  explanation: { type: Type.STRING, description: "Explanation of why this is correct, written in Vietnamese." }
+                  correctIndex: { type: Type.INTEGER, description: "0-based index of the correct answer." },
+                  explanation: { type: Type.STRING, description: "A very brief 1-sentence explanation of why this is correct, in Vietnamese." }
                 },
                 required: ["question", "options", "correctIndex", "explanation"]
               }
