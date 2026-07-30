@@ -1347,6 +1347,10 @@ export default function App() {
 
   const [previousView, setPreviousView] = useState<'quiz' | 'flashcard' | 'written' | 'listening'>('quiz');
 
+  // Input refs for automatic focus when switching words
+  const listeningInputRef = useRef<HTMLInputElement>(null);
+  const writtenInputRef = useRef<HTMLInputElement>(null);
+
   // Google Cloud integration state
   const [user, setUser] = useState<any>(null); // Firebase User
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -1544,6 +1548,26 @@ export default function App() {
       window.speechSynthesis.cancel();
     };
   }, [view, currentIdx, quizQuestions]);
+
+  // Automatically focus blank input space in listening mode when switching to a new word / starting next question
+  useEffect(() => {
+    if (view === 'listening' && !showListeningFeedback) {
+      const timer = setTimeout(() => {
+        listeningInputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [view, currentIdx, showListeningFeedback]);
+
+  // Automatically focus blank input space in written mode when switching to a new word
+  useEffect(() => {
+    if (view === 'written' && !showWrittenFeedback) {
+      const timer = setTimeout(() => {
+        writtenInputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [view, currentIdx, showWrittenFeedback]);
 
   const handleMarkFlashcard = (known: boolean) => {
     const currentQ = quizQuestions[currentIdx];
@@ -3140,6 +3164,7 @@ export default function App() {
             <form onSubmit={handleSubmitWritten} className="space-y-4">
               <div className="relative">
                 <input 
+                  ref={writtenInputRef}
                   type="text" 
                   value={writtenAnswer}
                   onChange={(e) => setWrittenAnswer(e.target.value)}
@@ -3331,7 +3356,10 @@ export default function App() {
             
             {/* Animated Audio Pulsing Button */}
             <button 
-              onClick={() => speak(word)}
+              onClick={() => {
+                speak(word);
+                setTimeout(() => listeningInputRef.current?.focus(), 100);
+              }}
               type="button"
               className="w-24 h-24 bg-pink-500/15 hover:bg-pink-500/30 active:scale-95 text-pink-400 hover:text-pink-300 rounded-full flex items-center justify-center transition-all border-4 border-pink-500/50 shadow-lg shadow-pink-500/20 mb-8 relative group cursor-pointer"
             >
@@ -3342,6 +3370,7 @@ export default function App() {
             <form onSubmit={handleSubmitListening} className="space-y-4 w-full">
               <div className="relative">
                 <input 
+                  ref={listeningInputRef}
                   type="text" 
                   value={listeningAnswer}
                   onChange={(e) => setListeningAnswer(e.target.value)}
