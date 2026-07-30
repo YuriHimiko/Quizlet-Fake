@@ -1350,6 +1350,14 @@ export default function App() {
   // Input refs for automatic focus when switching words
   const listeningInputRef = useRef<HTMLInputElement>(null);
   const writtenInputRef = useRef<HTMLInputElement>(null);
+  const autoNextTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const clearAutoNextTimer = () => {
+    if (autoNextTimerRef.current) {
+      clearTimeout(autoNextTimerRef.current);
+      autoNextTimerRef.current = null;
+    }
+  };
 
   // Google Cloud integration state
   const [user, setUser] = useState<any>(null); // Firebase User
@@ -1569,6 +1577,13 @@ export default function App() {
     }
   }, [view, currentIdx, showWrittenFeedback]);
 
+  // Clear auto-next timer on view/index change
+  useEffect(() => {
+    return () => {
+      clearAutoNextTimer();
+    };
+  }, [view, currentIdx]);
+
   const handleMarkFlashcard = (known: boolean) => {
     const currentQ = quizQuestions[currentIdx];
     if (!currentQ) return;
@@ -1641,6 +1656,7 @@ export default function App() {
   };
 
   const handleNextWritten = () => {
+    clearAutoNextTimer();
     if (currentIdx < quizQuestions.length - 1) {
       setCurrentIdx(prev => prev + 1);
       setWrittenAnswer('');
@@ -1690,9 +1706,15 @@ export default function App() {
     } else {
       speak(correctOption.text);
     }
+
+    clearAutoNextTimer();
+    autoNextTimerRef.current = setTimeout(() => {
+      handleNextWritten();
+    }, correct ? 1400 : 2000);
   };
 
   const handleNextListening = () => {
+    clearAutoNextTimer();
     if (currentIdx < quizQuestions.length - 1) {
       setCurrentIdx(prev => prev + 1);
       setListeningAnswer('');
@@ -1743,6 +1765,11 @@ export default function App() {
     } else {
       speak(correctOption.text);
     }
+
+    clearAutoNextTimer();
+    autoNextTimerRef.current = setTimeout(() => {
+      handleNextListening();
+    }, correct ? 1400 : 2000);
   };
 
   const openEditor = () => {
@@ -3201,6 +3228,10 @@ export default function App() {
                           if (prev.find(item => item.id === q.id)) return prev;
                           return [...prev, q];
                         });
+                        clearAutoNextTimer();
+                        autoNextTimerRef.current = setTimeout(() => {
+                          handleNextWritten();
+                        }, 1800);
                       }}
                       className="px-6 py-3 bg-[#1e1346] hover:bg-[#281d54] rounded-2xl font-black text-xs uppercase tracking-wider text-pink-300 border border-pink-500/30 transition-all cursor-pointer"
                     >
@@ -3407,6 +3438,10 @@ export default function App() {
                           if (prev.find(item => item.id === q.id)) return prev;
                           return [...prev, q];
                         });
+                        clearAutoNextTimer();
+                        autoNextTimerRef.current = setTimeout(() => {
+                          handleNextListening();
+                        }, 1800);
                       }}
                       className="px-6 py-3 bg-[#1e1346] hover:bg-[#281d54] rounded-2xl font-black text-xs uppercase tracking-wider text-pink-300 border border-pink-500/30 transition-all cursor-pointer"
                     >
