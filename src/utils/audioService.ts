@@ -152,6 +152,14 @@ export const playStandardAudio = async (
   }
 
   // Play using HTML5 Audio element
+  let hasFiredFallback = false;
+  const triggerFallback = (reason: string, err: any) => {
+    if (thisPlayId !== currentPlayId || hasFiredFallback) return;
+    hasFiredFallback = true;
+    console.warn(`HTML5 Audio fallback (${reason}):`, err);
+    fallbackToSpeechSynthesis(cleanText, options, thisPlayId);
+  };
+
   try {
     const audio = new Audio(audioSourceUrl);
     audio.playbackRate = rate;
@@ -161,31 +169,25 @@ export const playStandardAudio = async (
       if (activeAudioElement === audio) {
         activeAudioElement = null;
       }
-      if (thisPlayId === currentPlayId) {
+      if (thisPlayId === currentPlayId && !hasFiredFallback) {
         options.onEnd?.();
       }
     };
 
     audio.onerror = (err) => {
-      if (thisPlayId !== currentPlayId) return;
-      console.warn("HTML5 Audio playback error, falling back to Web Speech:", err);
-      fallbackToSpeechSynthesis(cleanText, options, thisPlayId);
+      triggerFallback("onerror", err);
     };
 
     if (thisPlayId !== currentPlayId) return;
 
     const playPromise = audio.play();
     if (playPromise !== undefined) {
-      await playPromise.catch((err) => {
-        if (thisPlayId !== currentPlayId) return;
-        console.warn("HTML5 Audio play prevented, falling back to Web Speech:", err);
-        fallbackToSpeechSynthesis(cleanText, options, thisPlayId);
+      playPromise.catch((err) => {
+        triggerFallback("playPromise catch", err);
       });
     }
   } catch (err) {
-    if (thisPlayId !== currentPlayId) return;
-    console.warn("Failed to initialize Audio element, falling back to Web Speech:", err);
-    fallbackToSpeechSynthesis(cleanText, options, thisPlayId);
+    triggerFallback("try catch block", err);
   }
 };
 
@@ -201,6 +203,7 @@ const fallbackToSpeechSynthesis = (text: string, options: PlayAudioOptions = {},
   }
 
   try {
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     const lang = options.lang || (localStorage.getItem('koko_accent') as 'en-GB' | 'en-US') || 'en-US';
     utterance.lang = lang;
