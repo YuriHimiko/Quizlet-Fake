@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { playStandardAudio, stopAllAudio } from "../utils/audioService";
 import { 
   ArrowLeft, 
   Sparkles, 
@@ -326,84 +327,38 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
 
   // Browser Text-To-Speech implementation
   const playSpeech = () => {
-    if (!synthRef.current || !exercise) return;
+    if (!exercise) return;
 
     stopSpeech();
 
     // Clean markdown bold notation and format the play list so speech sounds natural
     const parsedLines = parseListeningScript(exercise.listening);
     const cleanText = parsedLines.map(line => {
-      const prefix = line.speaker ? `${line.speaker} says: ` : "";
+      const prefix = line.speaker ? `${line.speaker}: ` : "";
       return prefix + line.text.replace(/\*\*/g, "");
     }).join("\n\n");
 
-    const utterance = new SpeechSynthesisUtterance(cleanText || exercise.listening.replace(/\*\*/g, ""));
-    utterance.lang = "en-US";
-    utterance.rate = speechRate;
-    utterance.pitch = speechPitch;
-
-    // Apply selected voice
-    if (selectedVoiceURI) {
-      const allVoices = synthRef.current.getVoices();
-      const activeVoice = allVoices.find(v => v.voiceURI === selectedVoiceURI);
-      if (activeVoice) {
-        utterance.voice = activeVoice;
-        utterance.lang = activeVoice.lang;
-      }
-    }
-
-    utterance.onend = () => {
-      setIsPlaying(false);
-    };
-
-    utterance.onerror = () => {
-      setIsPlaying(false);
-    };
-
-    utteranceRef.current = utterance;
     setIsPlaying(true);
-    synthRef.current.speak(utterance);
+    playStandardAudio(cleanText || exercise.listening, {
+      rate: speechRate,
+      onEnd: () => setIsPlaying(false),
+      onError: () => setIsPlaying(false)
+    });
   };
 
   const playLineSpeech = (text: string) => {
-    if (!synthRef.current) return;
     stopSpeech();
-
     const cleanText = text.replace(/\*\*/g, "");
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = "en-US";
-    utterance.rate = speechRate;
-    utterance.pitch = speechPitch;
-
-    if (selectedVoiceURI) {
-      const allVoices = synthRef.current.getVoices();
-      const activeVoice = allVoices.find(v => v.voiceURI === selectedVoiceURI);
-      if (activeVoice) {
-        utterance.voice = activeVoice;
-        utterance.lang = activeVoice.lang;
-      }
-    }
-
-    synthRef.current.speak(utterance);
+    playStandardAudio(cleanText, { rate: speechRate });
   };
 
   const pauseSpeech = () => {
-    if (synthRef.current) {
-      if (synthRef.current.speaking && !synthRef.current.paused) {
-        synthRef.current.pause();
-        setIsPlaying(false);
-      } else if (synthRef.current.paused) {
-        synthRef.current.resume();
-        setIsPlaying(true);
-      }
-    }
+    stopSpeech();
   };
 
   const stopSpeech = () => {
-    if (synthRef.current) {
-      synthRef.current.cancel();
-      setIsPlaying(false);
-    }
+    stopAllAudio();
+    setIsPlaying(false);
   };
 
   return (

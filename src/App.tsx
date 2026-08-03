@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as xlsx from 'xlsx';
+import { playStandardAudio, stopAllAudio } from './utils/audioService';
 import { 
   googleSignIn, 
   logout, 
@@ -1524,9 +1525,7 @@ export default function App() {
               if (currentQ) {
                 const correctOpt = currentQ.options.find(o => o.id === currentQ.correctId);
                 if (correctOpt) {
-                  const utterance = new SpeechSynthesisUtterance(correctOpt.text);
-                  utterance.lang = 'en-US';
-                  window.speechSynthesis.speak(utterance);
+                  speak(correctOpt.text);
                 }
               }
             }
@@ -1546,14 +1545,11 @@ export default function App() {
       const q = quizQuestions[currentIdx];
       const correctOption = q.options.find(o => o.id === q.correctId);
       if (correctOption && correctOption.text) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(correctOption.text);
-        utterance.lang = 'en-US';
-        window.speechSynthesis.speak(utterance);
+        speak(correctOption.text);
       }
     }
     return () => {
-      window.speechSynthesis.cancel();
+      stopAllAudio();
     };
   }, [view, currentIdx, quizQuestions]);
 
@@ -1904,26 +1900,7 @@ export default function App() {
   };
 
   const speak = (text: string) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
-
-    try {
-      if (typeof window !== "undefined" && window.speechSynthesis) {
-        const savedVoiceURI = localStorage.getItem('koko_selected_voice_uri');
-        if (savedVoiceURI) {
-          const voices = window.speechSynthesis.getVoices();
-          const found = voices.find(v => v.voiceURI === savedVoiceURI);
-          if (found) {
-            utterance.voice = found;
-            utterance.lang = found.lang;
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Error setting custom voice in main app:", e);
-    }
-
-    window.speechSynthesis.speak(utterance);
+    playStandardAudio(text);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
