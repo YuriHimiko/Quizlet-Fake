@@ -44,8 +44,10 @@ function saveCacheToLocalStorage() {
 }
 
 let activeAudioElement: HTMLAudioElement | null = null;
+let currentPlayId = 0;
 
 export const stopAllAudio = () => {
+  currentPlayId++; // Invalidates any pending async audio fetch requests
   if (activeAudioElement) {
     try {
       activeAudioElement.pause();
@@ -121,6 +123,7 @@ export const playStandardAudio = async (
   options: PlayAudioOptions = {}
 ): Promise<void> => {
   stopAllAudio();
+  const thisPlayId = currentPlayId;
 
   const cleanText = text.replace(/[*_#`]/g, '').trim();
   if (!cleanText) return;
@@ -138,6 +141,11 @@ export const playStandardAudio = async (
     audioSourceUrl = await fetchDictionaryAudioUrl(cleanText);
   }
 
+  // Check if a newer audio request was triggered or audio was stopped while fetching
+  if (thisPlayId !== currentPlayId) {
+    return;
+  }
+
   // Step 2: Fallback to Google Studio TTS MP3 audio stream
   if (!audioSourceUrl) {
     audioSourceUrl = getGoogleTtsUrl(cleanText, lang);
@@ -150,32 +158,42 @@ export const playStandardAudio = async (
     activeAudioElement = audio;
 
     audio.onended = () => {
-      activeAudioElement = null;
-      options.onEnd?.();
+      if (activeAudioElement === audio) {
+        activeAudioElement = null;
+      }
+      if (thisPlayId === currentPlayId) {
+        options.onEnd?.();
+      }
     };
 
     audio.onerror = (err) => {
+      if (thisPlayId !== currentPlayId) return;
       console.warn("HTML5 Audio playback error, falling back to Web Speech:", err);
-      fallbackToSpeechSynthesis(cleanText, options);
+      fallbackToSpeechSynthesis(cleanText, options, thisPlayId);
     };
+
+    if (thisPlayId !== currentPlayId) return;
 
     const playPromise = audio.play();
     if (playPromise !== undefined) {
       await playPromise.catch((err) => {
+        if (thisPlayId !== currentPlayId) return;
         console.warn("HTML5 Audio play prevented, falling back to Web Speech:", err);
-        fallbackToSpeechSynthesis(cleanText, options);
+        fallbackToSpeechSynthesis(cleanText, options, thisPlayId);
       });
     }
   } catch (err) {
+    if (thisPlayId !== currentPlayId) return;
     console.warn("Failed to initialize Audio element, falling back to Web Speech:", err);
-    fallbackToSpeechSynthesis(cleanText, options);
+    fallbackToSpeechSynthesis(cleanText, options, thisPlayId);
   }
 };
 
 /**
  * Web Speech API Fallback
  */
-const fallbackToSpeechSynthesis = (text: string, options: PlayAudioOptions = {}) => {
+const fallbackToSpeechSynthesis = (text: string, options: PlayAudioOptions = {}, playId?: number) => {
+  if (playId !== undefined && playId !== currentPlayId) return;
   if (typeof window === 'undefined' || !window.speechSynthesis) {
     options.onError?.('Speech synthesis unavailable');
     options.onEnd?.();
@@ -197,10 +215,16 @@ const fallbackToSpeechSynthesis = (text: string, options: PlayAudioOptions = {})
       }
     }
 
-    utterance.onend = () => options.onEnd?.();
+    utterance.onend = () => {
+      if (playId === undefined || playId === currentPlayId) {
+        options.onEnd?.();
+      }
+    };
     utterance.onerror = (e) => {
       options.onError?.(e);
-      options.onEnd?.();
+      if (playId === undefined || playId === currentPlayId) {
+        options.onEnd?.();
+      }
     };
 
     window.speechSynthesis.speak(utterance);

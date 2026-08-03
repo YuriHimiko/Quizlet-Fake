@@ -1551,7 +1551,7 @@ export default function App() {
     return () => {
       stopAllAudio();
     };
-  }, [view, currentIdx, quizQuestions]);
+  }, [view, currentIdx]);
 
   // Automatically focus blank input space in listening mode when switching to a new word / starting next question
   useEffect(() => {
