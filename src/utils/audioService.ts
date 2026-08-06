@@ -7,11 +7,27 @@
 
 export interface PlayAudioOptions {
   rate?: number;
+  pitch?: number;
+  gender?: 'male' | 'female' | 'auto';
   lang?: 'en-US' | 'en-GB';
   onStart?: () => void;
   onEnd?: () => void;
   onError?: (error: any) => void;
 }
+
+export const getVoiceGender = (): 'female' | 'male' | 'auto' => {
+  try {
+    const saved = localStorage.getItem('koko_voice_gender');
+    if (saved === 'male' || saved === 'female') return saved;
+  } catch (e) {}
+  return 'auto';
+};
+
+export const setVoiceGender = (gender: 'female' | 'male' | 'auto') => {
+  try {
+    localStorage.setItem('koko_voice_gender', gender);
+  } catch (e) {}
+};
 
 // In-memory cache for fast repeat playback
 const dictionaryAudioCache = new Map<string, string>();
@@ -130,10 +146,18 @@ export const playStandardAudio = async (
 
   const lang = options.lang || (localStorage.getItem('koko_accent') as 'en-GB' | 'en-US') || 'en-US';
   const rate = options.rate || 1.0;
+  const gender = options.gender || getVoiceGender();
 
   options.onStart?.();
 
-  // Primary Audio Engine: Google Studio TTS MP3 audio stream for 100% consistent, clear, high-quality audio
+  // If a specific voice gender (male/female) is selected for the study module,
+  // use Web Speech API with gender voice selection and tuned pitch for exact 100% consistency.
+  if (gender === 'male' || gender === 'female') {
+    fallbackToSpeechSynthesis(cleanText, { ...options, rate, gender, lang }, thisPlayId);
+    return;
+  }
+
+  // Primary Audio Engine for auto/default: Google Studio TTS MP3 audio stream
   const audioSourceUrl = getGoogleTtsUrl(cleanText, lang);
 
   // Play using HTML5 Audio element
@@ -142,7 +166,7 @@ export const playStandardAudio = async (
     if (thisPlayId !== currentPlayId || hasFiredFallback) return;
     hasFiredFallback = true;
     console.warn(`HTML5 Audio fallback (${reason}):`, err);
-    fallbackToSpeechSynthesis(cleanText, options, thisPlayId);
+    fallbackToSpeechSynthesis(cleanText, { ...options, rate, gender, lang }, thisPlayId);
   };
 
   try {
@@ -194,12 +218,44 @@ const fallbackToSpeechSynthesis = (text: string, options: PlayAudioOptions = {},
     utterance.lang = lang;
     utterance.rate = options.rate || 1.0;
 
-    const savedVoiceURI = localStorage.getItem('koko_selected_voice_uri');
-    if (savedVoiceURI) {
-      const voices = window.speechSynthesis.getVoices();
-      const found = voices.find(v => v.voiceURI === savedVoiceURI);
-      if (found) {
-        utterance.voice = found;
+    const gender = options.gender || getVoiceGender();
+    const voices = window.speechSynthesis.getVoices();
+    const englishVoices = voices.filter(v => v.lang.toLowerCase().startsWith('en'));
+
+    if (gender === 'male') {
+      utterance.pitch = options.pitch ?? 0.82;
+      const maleVoice = englishVoices.find(v => {
+        const name = v.name.toLowerCase();
+        return name.includes('male') || name.includes('david') || name.includes('george') || 
+               name.includes('alex') || name.includes('daniel') || name.includes('guy') || 
+               name.includes('james') || name.includes('mark') || name.includes('richard') || 
+               name.includes('oliver') || name.includes('matthew') || name.includes('thomas');
+      });
+      if (maleVoice) {
+        utterance.voice = maleVoice;
+        utterance.lang = maleVoice.lang;
+      }
+    } else if (gender === 'female') {
+      utterance.pitch = options.pitch ?? 1.12;
+      const femaleVoice = englishVoices.find(v => {
+        const name = v.name.toLowerCase();
+        return name.includes('female') || name.includes('zira') || name.includes('samantha') || 
+               name.includes('victoria') || name.includes('google us english') || name.includes('jenny') || 
+               name.includes('karen') || name.includes('siri') || name.includes('moira') || 
+               name.includes('fiona') || name.includes('ava');
+      });
+      if (femaleVoice) {
+        utterance.voice = femaleVoice;
+        utterance.lang = femaleVoice.lang;
+      }
+    } else {
+      utterance.pitch = options.pitch ?? 1.0;
+      const savedVoiceURI = localStorage.getItem('koko_selected_voice_uri');
+      if (savedVoiceURI) {
+        const found = voices.find(v => v.voiceURI === savedVoiceURI);
+        if (found) {
+          utterance.voice = found;
+        }
       }
     }
 

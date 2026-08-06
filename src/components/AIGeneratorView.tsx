@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { playStandardAudio, stopAllAudio } from "../utils/audioService";
+import { playStandardAudio, stopAllAudio, getVoiceGender, setVoiceGender } from "../utils/audioService";
 import { 
   ArrowLeft, 
   Sparkles, 
@@ -167,6 +167,7 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
   const [isPlaying, setIsPlaying] = useState(false);
   const [speechRate, setSpeechRate] = useState(0.85); // slower speech is better for English learners
   const [speechPitch, setSpeechPitch] = useState(1.0);
+  const [voiceGender, setVoiceGenderState] = useState<'female' | 'male' | 'auto'>(() => getVoiceGender());
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>(() => {
     try {
@@ -175,6 +176,12 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
       return "";
     }
   });
+
+  const handleGenderChange = (gender: 'female' | 'male' | 'auto') => {
+    setVoiceGenderState(gender);
+    setVoiceGender(gender);
+    stopSpeech();
+  };
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
@@ -733,26 +740,31 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                     </div>
 
                     <div className="flex flex-wrap items-center gap-6 w-full md:w-auto shrink-0">
-                      {/* Bộ chọn giọng nói */}
+                      {/* Chọn giới tính giọng đọc cho học phần */}
                       <div className="flex-1 md:flex-initial flex flex-col gap-1.5 min-w-[170px]">
                         <span className="text-[11px] font-black uppercase text-pink-300 tracking-wider font-mono flex items-center gap-1">
-                          <Volume2 className="w-3.5 h-3.5" /> Giọng đọc:
+                          <Volume2 className="w-3.5 h-3.5" /> Giọng đọc học phần:
                         </span>
-                        <select
-                          value={selectedVoiceURI}
-                          onChange={(e) => handleVoiceChange(e.target.value)}
-                          className="bg-[#16103a] border-2 border-white/10 focus:border-pink-500 text-white rounded-xl px-2.5 py-1.5 text-xs font-bold outline-none transition-all cursor-pointer w-full md:max-w-[180px]"
-                        >
-                          {voices.length === 0 ? (
-                            <option value="">Mặc định hệ thống</option>
-                          ) : (
-                            voices.map((v) => (
-                              <option key={v.voiceURI} value={v.voiceURI} className="bg-[#0b0821] text-white font-semibold">
-                                {v.name.replace(/Microsoft|Google|Apple|Natural/gi, '').trim() || v.name}
-                              </option>
-                            ))
-                          )}
-                        </select>
+                        <div className="flex items-center gap-1 bg-[#16103a] border-2 border-white/10 p-1 rounded-xl">
+                          <button
+                            type="button"
+                            onClick={() => handleGenderChange('female')}
+                            className={`flex-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                              voiceGender === 'female' ? 'bg-pink-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
+                            }`}
+                          >
+                            ♀️ Giọng Nữ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleGenderChange('male')}
+                            className={`flex-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                              voiceGender === 'male' ? 'bg-indigo-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
+                            }`}
+                          >
+                            ♂️ Giọng Nam
+                          </button>
+                        </div>
                       </div>
 
                       <div className="flex-1 md:flex-initial flex items-center gap-2.5 min-w-32">

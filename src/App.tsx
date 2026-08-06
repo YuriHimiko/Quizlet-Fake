@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as xlsx from 'xlsx';
-import { playStandardAudio, stopAllAudio } from './utils/audioService';
+import { playStandardAudio, stopAllAudio, getVoiceGender, setVoiceGender } from './utils/audioService';
 import { 
   googleSignIn, 
   logout, 
@@ -1899,8 +1899,16 @@ export default function App() {
     })));
   };
 
+  const [voiceGender, setVoiceGenderState] = useState<'female' | 'male' | 'auto'>(() => getVoiceGender());
+
+  const handleGenderChange = (gender: 'female' | 'male' | 'auto') => {
+    setVoiceGenderState(gender);
+    setVoiceGender(gender);
+    stopAllAudio();
+  };
+
   const speak = (text: string) => {
-    playStandardAudio(text);
+    playStandardAudio(text, { gender: voiceGender });
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2987,6 +2995,28 @@ export default function App() {
             <h1 className="text-xl font-bold text-pink-300 font-bubble">Thẻ ghi nhớ ma thuật</h1>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-[#16103a] border border-pink-500/20 p-1 rounded-xl text-xs">
+              <button
+                type="button"
+                onClick={() => handleGenderChange('female')}
+                className={`px-2.5 py-1 font-bold rounded-lg transition-all ${
+                  voiceGender === 'female' ? 'bg-pink-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
+                }`}
+                title="Sử dụng giọng nữ cho học phần"
+              >
+                ♀️ Nữ
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGenderChange('male')}
+                className={`px-2.5 py-1 font-bold rounded-lg transition-all ${
+                  voiceGender === 'male' ? 'bg-indigo-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
+                }`}
+                title="Sử dụng giọng nam cho học phần"
+              >
+                ♂️ Nam
+              </button>
+            </div>
             <span className="text-pink-300 font-black px-3 py-1 bg-pink-500/10 rounded-full text-xs font-mono border border-pink-500/20">{currentIdx + 1} / {quizQuestions.length}</span>
             <button 
               onClick={handleShuffleQuiz}
@@ -3109,6 +3139,28 @@ export default function App() {
             <h1 className="text-xl font-bold text-pink-300 font-bubble">Chế độ tự luận ma thuật</h1>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-[#16103a] border border-pink-500/20 p-1 rounded-xl text-xs">
+              <button
+                type="button"
+                onClick={() => handleGenderChange('female')}
+                className={`px-2.5 py-1 font-bold rounded-lg transition-all ${
+                  voiceGender === 'female' ? 'bg-pink-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
+                }`}
+                title="Sử dụng giọng nữ cho học phần"
+              >
+                ♀️ Nữ
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGenderChange('male')}
+                className={`px-2.5 py-1 font-bold rounded-lg transition-all ${
+                  voiceGender === 'male' ? 'bg-indigo-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
+                }`}
+                title="Sử dụng giọng nam cho học phần"
+              >
+                ♂️ Nam
+              </button>
+            </div>
             <span className="text-pink-300 font-black px-3 py-1 bg-pink-500/10 rounded-full text-xs font-mono border border-pink-500/20">{currentIdx + 1} / {quizQuestions.length}</span>
             <button 
               onClick={handleShuffleQuiz}
@@ -3310,6 +3362,28 @@ export default function App() {
             <h1 className="text-xl font-bold text-pink-300 font-bubble">Chế độ luyện nghe ma thuật</h1>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-[#16103a] border border-pink-500/20 p-1 rounded-xl text-xs">
+              <button
+                type="button"
+                onClick={() => handleGenderChange('female')}
+                className={`px-2.5 py-1 font-bold rounded-lg transition-all ${
+                  voiceGender === 'female' ? 'bg-pink-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
+                }`}
+                title="Sử dụng giọng nữ cho học phần"
+              >
+                ♀️ Nữ
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGenderChange('male')}
+                className={`px-2.5 py-1 font-bold rounded-lg transition-all ${
+                  voiceGender === 'male' ? 'bg-indigo-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
+                }`}
+                title="Sử dụng giọng nam cho học phần"
+              >
+                ♂️ Nam
+              </button>
+            </div>
             <span className="text-pink-300 font-black px-3 py-1 bg-pink-500/10 rounded-full text-xs font-mono border border-pink-500/20">{currentIdx + 1} / {quizQuestions.length}</span>
             <button 
               onClick={handleShuffleQuiz}
