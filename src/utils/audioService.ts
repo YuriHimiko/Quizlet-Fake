@@ -133,23 +133,8 @@ export const playStandardAudio = async (
 
   options.onStart?.();
 
-  // Step 1: Check for Oxford/Cambridge/Wiktionary authentic dictionary audio MP3
-  let audioSourceUrl: string | null = null;
-  const wordCount = cleanText.split(/\s+/).length;
-
-  if (wordCount <= 2) {
-    audioSourceUrl = await fetchDictionaryAudioUrl(cleanText);
-  }
-
-  // Check if a newer audio request was triggered or audio was stopped while fetching
-  if (thisPlayId !== currentPlayId) {
-    return;
-  }
-
-  // Step 2: Fallback to Google Studio TTS MP3 audio stream
-  if (!audioSourceUrl) {
-    audioSourceUrl = getGoogleTtsUrl(cleanText, lang);
-  }
+  // Primary Audio Engine: Google Studio TTS MP3 audio stream for 100% consistent, clear, high-quality audio
+  const audioSourceUrl = getGoogleTtsUrl(cleanText, lang);
 
   // Play using HTML5 Audio element
   let hasFiredFallback = false;
