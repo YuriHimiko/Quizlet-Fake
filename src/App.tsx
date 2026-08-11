@@ -117,7 +117,7 @@ const sanitizeQuestions = (qs: Question[]): Question[] => {
 const INITIAL_QUESTIONS: Question[] = [
   {
     id: 1,
-    definition: "Ngăn chặn, phòng ngừa",
+    definition: "To stop something from happening or to impede progress",
     options: [
       { id: 1, text: "Elegance", partOfSpeech: "n" },
       { id: 2, text: "Hinder", partOfSpeech: "v" },
@@ -128,7 +128,7 @@ const INITIAL_QUESTIONS: Question[] = [
   },
   {
     id: 2,
-    definition: "Sự thanh lịch, tao nhã",
+    definition: "The quality of being graceful and stylish in appearance or manner",
     options: [
       { id: 1, text: "Elegance", partOfSpeech: "n" },
       { id: 2, text: "Hinder", partOfSpeech: "v" },
@@ -139,7 +139,7 @@ const INITIAL_QUESTIONS: Question[] = [
   },
   {
     id: 3,
-    definition: "Thích hơn",
+    definition: "To like one thing or person better than another",
     options: [
       { id: 1, text: "Elegance", partOfSpeech: "n" },
       { id: 2, text: "Hinder", partOfSpeech: "v" },
@@ -156,17 +156,17 @@ const LIVE2D_MODELS = [
     name: 'Shizuku-chan',
     emoji: '👩‍🏫',
     url: 'https://unpkg.com/live2d-widget-model-shizuku@1.0.5/assets/shizuku.model.json',
-    desc: 'Lớp trưởng học đường tinh nghịch, nháy mắt lém lỉnh và cực kỳ chăm chỉ! 🌸',
+    desc: 'Playful class monitor with a mischievous wink, studying hard alongside you! 🌸',
     canvasWidth: 150,
     canvasHeight: 300,
     canvasStyle: { transform: 'scale(1.15) translateY(14%)' }
   },
   {
     id: 'koharu',
-    name: 'Koharu dễ thương',
+    name: 'Cute Koharu',
     emoji: '🎒',
     url: 'https://unpkg.com/live2d-widget-model-koharu@1.0.5/assets/koharu.model.json',
-    desc: 'Cô bé học sinh cấp 1 đeo ba lô đỏ cực kỳ đáng yêu, chăm chú nghe giảng! 🥰',
+    desc: 'Adorable primary school student with a red rucksack, listening attentively! 🥰',
     canvasWidth: 150,
     canvasHeight: 300,
     canvasStyle: { transform: 'scale(1.15) translateY(14%)' }
@@ -176,27 +176,27 @@ const LIVE2D_MODELS = [
     name: 'Hatsune Miku',
     emoji: '🎤',
     url: 'https://unpkg.com/live2d-widget-model-miku@1.0.5/assets/miku.model.json',
-    desc: 'Bảo bối ca sĩ ảo nổi tiếng với mái tóc hai bím xanh lam rực rỡ và tràn đầy sức sống! 🌟',
+    desc: 'Famous virtual singer with vibrant turquoise twintails full of energy! 🌟',
     canvasWidth: 150,
     canvasHeight: 350,
     canvasStyle: { transform: 'scale(1.2) translateY(16%)' }
   },
   {
     id: 'tororo',
-    name: 'Mèo Tororo Trắng',
+    name: 'Tororo White Cat',
     emoji: '🐱',
     url: 'https://unpkg.com/live2d-widget-model-tororo@1.0.5/assets/tororo.model.json',
-    desc: 'Chú mèo trắng múp míp thích ngủ nướng nhưng luôn sẵn sàng đồng hành cùng Senpai! 💤',
+    desc: 'Fluffy white cat who loves sleeping, always ready to accompany your study! 💤',
     canvasWidth: 200,
     canvasHeight: 200,
     canvasStyle: { transform: 'scale(0.9) translateY(0%)' }
   },
   {
     id: 'hijiki',
-    name: 'Mèo Hijiki Đen',
+    name: 'Hijiki Black Cat',
     emoji: '🐈‍⬛',
     url: 'https://unpkg.com/live2d-widget-model-hijiki@1.0.5/assets/hijiki.model.json',
-    desc: 'Chú mèo đen bí ẩn, thỉnh thoảng liếc nhìn và nghịch ngợm cực lanh lợi! ✨',
+    desc: 'Mysterious black cat that winks and plays around cleverly! ✨',
     canvasWidth: 200,
     canvasHeight: 200,
     canvasStyle: { transform: 'scale(0.9) translateY(0%)' }
@@ -206,17 +206,17 @@ const LIVE2D_MODELS = [
     name: 'Unity-chan',
     emoji: '⚔️',
     url: 'https://unpkg.com/live2d-widget-model-unitychan@1.0.5/assets/unitychan.model.json',
-    desc: 'Cô gái năng động với hai bím tóc vàng rực lửa của nhà phát triển game Unity! 🎮',
+    desc: 'Energetic blonde game developer girl full of enthusiasm! 🎮',
     canvasWidth: 150,
     canvasHeight: 300,
     canvasStyle: { transform: 'scale(1.15) translateY(12%)' }
   },
   {
     id: 'wanko',
-    name: 'Cún Wanko',
+    name: 'Wanko Puppy',
     emoji: '🐶',
     url: 'https://unpkg.com/live2d-widget-model-wanko@1.0.5/assets/wanko.model.json',
-    desc: 'Chú cún shiba con siêu dễ ghét luôn mừng rỡ vẫy tai mỗi khi thấy Senpai tiến bộ! 🦴',
+    desc: 'Super sweet shiba puppy wagging its ears every time you make progress! 🦴',
     canvasWidth: 200,
     canvasHeight: 200,
     canvasStyle: { transform: 'scale(0.9) translateY(0%)' }
@@ -226,7 +226,7 @@ const LIVE2D_MODELS = [
     name: 'Chitose-chan',
     emoji: '🎴',
     url: 'https://unpkg.com/live2d-widget-model-chitose@1.0.5/assets/chitose.model.json',
-    desc: 'Thiếu nữ kimono trang nhã, dịu dàng đồng hành qua từng thử thách khó khằn!',
+    desc: 'Elegant maiden in kimono gently guiding you through tricky challenges!',
     canvasWidth: 150,
     canvasHeight: 300,
     canvasStyle: { transform: 'scale(1.15) translateY(12%)' }
@@ -314,7 +314,7 @@ const MascotState = {
 };
 
 const vtuberListeners = new Set<() => void>();
-let globalVtuberSpeechText = 'Xin chào senpai! Tôi đang ở cấu hình Open-LLM-VTuber, hãy kết nối và trò chuyện cùng tôi nhé! ✨🌸';
+let globalVtuberSpeechText = 'Hello! I am ready in Open-LLM-VTuber mode. Connect and chat with me! ✨🌸';
 let globalVtuberWsStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
 let globalVtuberHistory: { role: 'user' | 'assistant'; text: string; time: string }[] = [];
 
@@ -1503,9 +1503,12 @@ export default function App() {
   const [editTerms, setEditTerms] = useState<{ id: number; term: string; definition: string }[]>([]);
   const [editTitle, setEditTitle] = useState(new Date().toLocaleDateString('vi-VN'));
 
-  // Sync to localStorage
+  // Sync to localStorage and set default EN-UK accent
   useEffect(() => {
     localStorage.setItem('english_quiz_sets', JSON.stringify(studySets));
+    if (!localStorage.getItem('koko_accent')) {
+      localStorage.setItem('koko_accent', 'en-GB');
+    }
   }, [studySets]);
 
   // Keyboard navigation for flashcards
@@ -2992,7 +2995,7 @@ export default function App() {
             >
               <X className="w-5 h-5 shrink-0" />
             </button>
-            <h1 className="text-xl font-bold text-pink-300 font-bubble">Thẻ ghi nhớ ma thuật</h1>
+            <h1 className="text-xl font-bold text-pink-300 font-bubble">Magic Flashcards</h1>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-[#16103a] border border-pink-500/20 p-1 rounded-xl text-xs">
@@ -3002,9 +3005,9 @@ export default function App() {
                 className={`px-2.5 py-1 font-bold rounded-lg transition-all ${
                   voiceGender === 'female' ? 'bg-pink-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
                 }`}
-                title="Sử dụng giọng nữ cho học phần"
+                title="Use female voice"
               >
-                ♀️ Nữ
+                ♀️ Female
               </button>
               <button
                 type="button"
@@ -3012,16 +3015,16 @@ export default function App() {
                 className={`px-2.5 py-1 font-bold rounded-lg transition-all ${
                   voiceGender === 'male' ? 'bg-indigo-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
                 }`}
-                title="Sử dụng giọng nam cho học phần"
+                title="Use male voice"
               >
-                ♂️ Nam
+                ♂️ Male
               </button>
             </div>
             <span className="text-pink-300 font-black px-3 py-1 bg-pink-500/10 rounded-full text-xs font-mono border border-pink-500/20">{currentIdx + 1} / {quizQuestions.length}</span>
             <button 
               onClick={handleShuffleQuiz}
               className="p-2.5 bg-pink-600/20 hover:bg-pink-600 text-pink-300 hover:text-white rounded-xl transition-all cursor-pointer"
-              title="Xáo trộn câu hỏi"
+              title="Shuffle questions"
             >
               <Shuffle className="w-5 h-5" />
             </button>
@@ -3034,8 +3037,8 @@ export default function App() {
             expression={isFlipped ? "happy" : "smile"}
             text={
               isFlipped 
-                ? "Kyaaa! Từ này phát âm là '" + word + "' đó Senpai! " + (pos ? "Nó là một " + pos + " đó nha! " : "") + "Senpai đã nhớ kỹ chưa nào? 🌸💖"
-                : "Uưnn... Cùng đoán xem thuật ngữ tiếng Anh của '" + definition + "' là gì nào! Hãy chạm vào thẻ để Koko lật mở cho Senpai nhé! ⭐"
+                ? "Kyaaa! This word is pronounced '" + word + "'! " + (pos ? "It is a (" + pos + "). " : "") + "Did you remember it well? 🌸💖"
+                : "Hmm... Can you guess the English term for '" + definition + "'? Tap the card to flip! ⭐"
             }
           />
 
@@ -3070,15 +3073,15 @@ export default function App() {
               {/* Front (Definition) */}
               <div className="absolute inset-0 [backface-visibility:hidden] bg-[#22174c] border-4 border-dashed border-pink-400/40 rounded-3xl flex flex-col items-center justify-center p-8 shadow-2xl relative">
                 <div className="absolute top-4 left-4 text-pink-300/30 text-xs font-bold font-mono tracking-widest">DEFINING MAGIC 🎴</div>
-                <span className="text-pink-300 font-extrabold text-sm uppercase tracking-wider mb-4 font-mono bg-pink-500/10 px-3 py-1 rounded-full border border-pink-500/20">Định nghĩa tiếng Việt</span>
+                <span className="text-pink-300 font-extrabold text-sm uppercase tracking-wider mb-4 font-mono bg-pink-500/10 px-3 py-1 rounded-full border border-pink-500/20">Definition</span>
                 <h2 className="text-2xl md:text-3xl font-extrabold text-center leading-relaxed text-pink-100 font-bubble">{definition}</h2>
-                <div className="absolute bottom-6 text-pink-300/50 text-xs font-black uppercase tracking-widest animate-pulse">🌸 Click hoặc SPACE để lật thẻ 🌸</div>
+                <div className="absolute bottom-6 text-pink-300/50 text-xs font-black uppercase tracking-widest animate-pulse">🌸 Click or SPACE to flip card 🌸</div>
               </div>
 
               {/* Back (Word) */}
               <div className="absolute inset-0 [backface-visibility:hidden] bg-[#1e1445] border-4 border-solid border-pink-500 rounded-3xl flex flex-col items-center justify-center p-8 shadow-2xl [transform:rotateX(180deg)] relative anime-shadow-pink">
                 <div className="absolute top-4 left-4 text-cyan-300/30 text-xs font-bold font-mono tracking-widest font-bubble">SPELL COMPLETED 💫</div>
-                <span className="text-cyan-300 font-extrabold text-sm uppercase tracking-wider mb-4 font-mono bg-cyan-500/15 px-3 py-1 rounded-full border border-cyan-500/20">Thuật ngữ tiếng Anh</span>
+                <span className="text-cyan-300 font-extrabold text-sm uppercase tracking-wider mb-4 font-mono bg-cyan-500/15 px-3 py-1 rounded-full border border-cyan-500/20">English Term</span>
                 <h2 className="text-3xl md:text-5.5xl font-black text-center text-white font-bubble tracking-wide">{word}</h2>
                 {pos && <span className="text-pink-300 font-extrabold mt-4 text-sm bg-pink-500/20 px-3.5 py-1 rounded-full border border-pink-500/20">({pos})</span>}
                 
@@ -3091,7 +3094,7 @@ export default function App() {
                 >
                   <Volume2 className="w-5 h-5 text-pink-100" />
                 </button>
-                <div className="absolute bottom-6 text-pink-300/50 text-xs font-black uppercase tracking-widest">🌸 Click để lật lại 🌸</div>
+                <div className="absolute bottom-6 text-pink-300/50 text-xs font-black uppercase tracking-widest">🌸 Click to flip back 🌸</div>
               </div>
             </motion.div>
           </div>
@@ -3101,13 +3104,13 @@ export default function App() {
               onClick={() => handleMarkFlashcard(false)}
               className="flex-1 py-4 bg-rose-500 hover:bg-rose-400 text-white rounded-2xl transition-all flex justify-center items-center shadow-lg border-2 border-rose-300 font-mono font-black cursor-pointer anime-shadow-pink hover:-translate-y-0.5 text-xs uppercase"
             >
-              <span className="mr-2">X</span> Luyện lại 😢
+              <span className="mr-2">X</span> Review 😢
             </button>
             <button 
               onClick={() => handleMarkFlashcard(true)}
               className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl transition-all flex justify-center items-center shadow-lg border-2 border-emerald-300 font-mono font-black cursor-pointer anime-shadow-emerald hover:-translate-y-0.5 text-xs uppercase"
             >
-              <span className="mr-2">✓</span> Đã thuộc 🌸
+              <span className="mr-2">✓</span> Learned 🌸
             </button>
           </div>
         </main>
@@ -3136,7 +3139,7 @@ export default function App() {
             >
               <X className="w-5 h-5 shrink-0" />
             </button>
-            <h1 className="text-xl font-bold text-pink-300 font-bubble">Chế độ tự luận ma thuật</h1>
+            <h1 className="text-xl font-bold text-pink-300 font-bubble">Spelling & Writing Mode</h1>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-[#16103a] border border-pink-500/20 p-1 rounded-xl text-xs">
@@ -3146,9 +3149,9 @@ export default function App() {
                 className={`px-2.5 py-1 font-bold rounded-lg transition-all ${
                   voiceGender === 'female' ? 'bg-pink-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
                 }`}
-                title="Sử dụng giọng nữ cho học phần"
+                title="Use female voice"
               >
-                ♀️ Nữ
+                ♀️ Female
               </button>
               <button
                 type="button"
@@ -3156,16 +3159,16 @@ export default function App() {
                 className={`px-2.5 py-1 font-bold rounded-lg transition-all ${
                   voiceGender === 'male' ? 'bg-indigo-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
                 }`}
-                title="Sử dụng giọng nam cho học phần"
+                title="Use male voice"
               >
-                ♂️ Nam
+                ♂️ Male
               </button>
             </div>
             <span className="text-pink-300 font-black px-3 py-1 bg-pink-500/10 rounded-full text-xs font-mono border border-pink-500/20">{currentIdx + 1} / {quizQuestions.length}</span>
             <button 
               onClick={handleShuffleQuiz}
               className="p-2.5 bg-pink-600/20 hover:bg-pink-600 text-pink-300 hover:text-white rounded-xl transition-all cursor-pointer"
-              title="Xáo trộn câu hỏi"
+              title="Shuffle questions"
             >
               <Shuffle className="w-5 h-5" />
             </button>
@@ -3181,10 +3184,10 @@ export default function App() {
             }
             text={
               !showWrittenFeedback 
-                ? "Senpai ơi! Hãy nhập thuật ngữ tiếng Anh tương ứng với định nghĩa '" + definition + "' nhé! Koko đang ngóng chờ bài làm của Senpai nè! ✏️✨"
+                ? "Enter the English term corresponding to '" + definition + "'! Koko is looking forward to your answer! ✏️✨"
                 : isWrittenCorrect
-                  ? "Woaaaa! Tuyệt vời ông mặt trời luôn Senpai! Hấp thu ma thuật '" + word + "' thành công mỹ mãn! 💕🎉"
-                  : "Ưnn... Chần chừ một xíu rồi. Đáp án chính xác là '" + word + "' nha Senpai! Viết lại một lần để ghi nhớ sâu sắc nhé! 🌸"
+                  ? "Woaaa! Brilliant work! You mastered '" + word + "' perfectly! 💕🎉"
+                  : "Oh... Close attempt! The correct spelling is '" + word + "'. Try writing it down to remember! 🌸"
             }
           />
 
@@ -3214,7 +3217,7 @@ export default function App() {
             <div className="absolute top-3 right-4 text-[10px] bg-pink-500/20 text-pink-300 font-extrabold px-3 py-0.5 rounded-full border border-pink-500/25 uppercase font-mono tracking-wider font-bubble">
               Spell Book 📖
             </div>
-            <span className="text-pink-300/50 text-xs font-bold uppercase tracking-widest mb-3 block">Nghĩa tiếng Việt</span>
+            <span className="text-pink-300/50 text-xs font-bold uppercase tracking-widest mb-3 block">Definition</span>
             <h2 className="text-2xl md:text-3xl font-extrabold mb-8 leading-relaxed text-pink-100 font-bubble">{definition}</h2>
 
             <form onSubmit={handleSubmitWritten} className="space-y-4">
@@ -3224,7 +3227,7 @@ export default function App() {
                   type="text" 
                   value={writtenAnswer}
                   onChange={(e) => setWrittenAnswer(e.target.value)}
-                  placeholder="Nhập từ vựng tiếng Anh tương ứng..."
+                  placeholder="Type the English term..."
                   className={`w-full bg-[#0d0727] border-2 rounded-2xl px-6 py-4 text-lg font-extrabold text-center focus:outline-none focus:ring-4 focus:ring-pink-500/20 transition-all font-bubble ${
                     showWrittenFeedback 
                       ? isWrittenCorrect 
@@ -3264,14 +3267,14 @@ export default function App() {
                       }}
                       className="px-6 py-3 bg-[#1e1346] hover:bg-[#281d54] rounded-2xl font-black text-xs uppercase tracking-wider text-pink-300 border border-pink-500/30 transition-all cursor-pointer"
                     >
-                      Bỏ qua 🌟
+                      Skip 🌟
                     </button>
                     <button 
                       type="submit"
                       disabled={!writtenAnswer.trim()}
                       className="px-8 py-3 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:hover:bg-pink-600 rounded-2xl font-black text-xs uppercase tracking-wider transition-all text-white shadow-lg anime-shadow-pink cursor-pointer border-2 border-pink-400/50"
                     >
-                      Kiểm tra ☄️
+                      Check ☄️
                     </button>
                   </>
                 ) : (
@@ -3280,7 +3283,7 @@ export default function App() {
                     onClick={handleNextWritten}
                     className="px-10 py-3 bg-pink-600 hover:bg-pink-500 rounded-2xl font-black text-xs uppercase tracking-wider transition-all text-white shadow-lg anime-shadow-pink cursor-pointer border-2 border-pink-400/50"
                   >
-                    {currentIdx < quizQuestions.length - 1 ? 'Tiếp theo 🌸' : 'Xem kết quả ✨'}
+                    {currentIdx < quizQuestions.length - 1 ? 'Next 🌸' : 'View Results ✨'}
                   </button>
                 )}
               </div>
@@ -3310,10 +3313,10 @@ export default function App() {
                   </div>
                   <div className="flex-1">
                     <p className="font-extrabold text-lg mb-1 font-bubble">
-                      {isWrittenCorrect ? 'Hoàn toàn chính xác! ✨' : 'Chưa đúng rồi Senpai...'}
+                      {isWrittenCorrect ? 'Spot on! ✨' : 'Not quite right...'}
                     </p>
                     <p className="text-pink-100/80 text-sm leading-relaxed font-bubble">
-                      Đáp án đúng:{' '}
+                      Correct answer:{' '}
                       <strong className="text-white text-lg font-bubble underline decoration-pink-500 decoration-2 underline-offset-2">
                         {word}
                       </strong>{' '}
@@ -3324,9 +3327,9 @@ export default function App() {
                     onClick={() => speak(word)}
                     type="button"
                     className="p-3 bg-[#1e1346] hover:bg-[#281d54] border border-pink-500/20 text-pink-300 hover:text-pink-200 rounded-full transition-all shrink-0 cursor-pointer"
-                    title="Nghe phát âm"
+                    title="Listen to pronunciation"
                   >
-                    <Volume2 className="w-5 h-5 hidden" /> {/* Hidden here since styled elsewhere */}
+                    <Volume2 className="w-5 h-5 hidden" />
                     <span className="text-xs font-mono">🔈 REPLAY</span>
                   </button>
                 </div>
@@ -3359,7 +3362,7 @@ export default function App() {
             >
               <X className="w-5 h-5 shrink-0" />
             </button>
-            <h1 className="text-xl font-bold text-pink-300 font-bubble">Chế độ luyện nghe ma thuật</h1>
+            <h1 className="text-xl font-bold text-pink-300 font-bubble">Magic Listening Practice</h1>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-[#16103a] border border-pink-500/20 p-1 rounded-xl text-xs">
@@ -3369,9 +3372,9 @@ export default function App() {
                 className={`px-2.5 py-1 font-bold rounded-lg transition-all ${
                   voiceGender === 'female' ? 'bg-pink-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
                 }`}
-                title="Sử dụng giọng nữ cho học phần"
+                title="Use female voice"
               >
-                ♀️ Nữ
+                ♀️ Female
               </button>
               <button
                 type="button"
@@ -3379,16 +3382,16 @@ export default function App() {
                 className={`px-2.5 py-1 font-bold rounded-lg transition-all ${
                   voiceGender === 'male' ? 'bg-indigo-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
                 }`}
-                title="Sử dụng giọng nam cho học phần"
+                title="Use male voice"
               >
-                ♂️ Nam
+                ♂️ Male
               </button>
             </div>
             <span className="text-pink-300 font-black px-3 py-1 bg-pink-500/10 rounded-full text-xs font-mono border border-pink-500/20">{currentIdx + 1} / {quizQuestions.length}</span>
             <button 
               onClick={handleShuffleQuiz}
               className="p-2.5 bg-pink-600/20 hover:bg-pink-600 text-pink-300 hover:text-white rounded-xl transition-all cursor-pointer"
-              title="Xáo trộn câu hỏi"
+              title="Shuffle questions"
             >
               <Shuffle className="w-5 h-5" />
             </button>
@@ -3404,10 +3407,10 @@ export default function App() {
             }
             text={
               !showListeningFeedback 
-                ? "Koko vừa đọc một thần chú tiếng Anh đó! Senpai nghe thấy thuật ngữ gì nào? Hãy điền vào ô bên dưới nha! Tai Senpai chắc chắn rất thính đó! 🎧💖"
+                ? "Koko just spoke an English word! What term did you hear? Type it into the box below! 🎧💖"
                 : isListeningCorrect
-                  ? "Kyaaa! Tai Senpai thính xuất thần quá đi thui! Chúc mừng Senpai đã gõ chuẩn đồi! ✨🏵️"
-                  : "Oaaiii... Hơi lệch một xíu rùi! Đáp án viết là '" + word + "' nha Senpai! Koko tin lần sau Senpai sẽ gõ đúng mờ! 💕"
+                  ? "Kyaaa! Excellent listening skills! You typed it perfectly! ✨🏵️"
+                  : "Oh... Close attempt! The correct word is '" + word + "'. Koko knows you will get it right next time! 💕"
             }
           />
 
@@ -3434,7 +3437,7 @@ export default function App() {
 
           {/* Audio Practice Card */}
           <div className="w-full bg-[#1c143d] border-2 border-pink-500/30 rounded-3xl flex flex-col items-center p-6 md:p-10 shadow-2xl relative anime-shadow-pink">
-            <span className="text-pink-300/65 text-xs font-bold uppercase tracking-widest mb-6 block text-center font-bubble">Bấm nút quả cầu để nghe ma pháp âm</span>
+            <span className="text-pink-300/65 text-xs font-bold uppercase tracking-widest mb-6 block text-center font-bubble">Press the audio orb to listen</span>
             
             {/* Animated Audio Pulsing Button */}
             <button 
@@ -3456,7 +3459,7 @@ export default function App() {
                   type="text" 
                   value={listeningAnswer}
                   onChange={(e) => setListeningAnswer(e.target.value)}
-                  placeholder="Điền từ vựng tiếng Anh nghe được..."
+                  placeholder="Type the English vocabulary word you heard..."
                   className={`w-full bg-[#0d0727] border-2 rounded-2xl px-6 py-4 text-lg font-extrabold text-center focus:outline-none focus:ring-4 focus:ring-pink-500/20 transition-all font-bubble ${
                     showListeningFeedback 
                       ? isListeningCorrect 
@@ -3496,14 +3499,14 @@ export default function App() {
                       }}
                       className="px-6 py-3 bg-[#1e1346] hover:bg-[#281d54] rounded-2xl font-black text-xs uppercase tracking-wider text-pink-300 border border-pink-500/30 transition-all cursor-pointer"
                     >
-                      Bỏ qua 🌟
+                      Skip 🌟
                     </button>
                     <button 
                       type="submit"
                       disabled={!listeningAnswer.trim()}
                       className="px-8 py-3 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:hover:bg-pink-600 rounded-2xl font-black text-xs uppercase tracking-wider transition-all text-white shadow-lg anime-shadow-pink cursor-pointer border-2 border-pink-400/50"
                     >
-                      Kiểm tra ☄️
+                      Check ☄️
                     </button>
                   </>
                 ) : (
@@ -3512,7 +3515,7 @@ export default function App() {
                     onClick={handleNextListening}
                     className="px-10 py-3 bg-pink-600 hover:bg-pink-500 rounded-2xl font-black text-xs uppercase tracking-wider transition-all text-white shadow-lg anime-shadow-pink cursor-pointer border-2 border-pink-400/50"
                   >
-                    {currentIdx < quizQuestions.length - 1 ? 'Tiếp hèo 🌸' : 'Xem kết quả ✨'}
+                    {currentIdx < quizQuestions.length - 1 ? 'Next 🌸' : 'View Results ✨'}
                   </button>
                 )}
               </div>
@@ -3542,17 +3545,17 @@ export default function App() {
                   </div>
                   <div className="flex-1">
                     <p className="font-extrabold text-lg mb-1 font-bubble">
-                      {isListeningCorrect ? 'Hoàn toàn chính xác! ✨' : 'Chưa đúng rồi Senpai...'}
+                      {isListeningCorrect ? 'Spot on! ✨' : 'Not quite right...'}
                     </p>
                     <p className="text-pink-100/80 text-sm leading-relaxed mb-2 font-mono">
-                      Từ vựng:{' '}
+                      Vocabulary:{' '}
                       <strong className="text-white text-lg font-bubble underline decoration-pink-500 decoration-2 underline-offset-2">
                         {word}
                       </strong>{' '}
                       {pos && <span className="text-pink-300/60 text-xs">({pos})</span>}
                     </p>
                     <div className="text-pink-300/40 text-xs border-t border-pink-500/10 pt-2 mt-2 font-bubble">
-                      <span className="font-bold text-pink-300/60 uppercase block mb-1">Ý nghĩa tiếng Việt:</span>
+                      <span className="font-bold text-pink-300/60 uppercase block mb-1">Definition:</span>
                       <p className="text-pink-100 text-sm leading-relaxed">{definition}</p>
                     </div>
                   </div>
@@ -3560,7 +3563,7 @@ export default function App() {
                     onClick={() => speak(word)}
                     type="button"
                     className="p-3 bg-[#1e1346] hover:bg-[#281d54] border border-pink-500/20 text-pink-300 hover:text-pink-200 rounded-full transition-all shrink-0 cursor-pointer"
-                    title="Nghe lại phát âm"
+                    title="Replay audio"
                   >
                     <Volume2 className="w-5 h-5" />
                   </button>
@@ -3585,27 +3588,27 @@ export default function App() {
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-pink-500/20 text-pink-400 mb-2 border-2 border-pink-400/30 anime-shadow-pink animate-bounce">
               <CheckCircle2 className="w-10 h-10" />
             </div>
-            <h1 className="text-3xl md:text-4xl font-extrabold text-pink-300 font-bubble">Chinh Phục Thành Công!</h1>
-            <p className="text-pink-200/75 text-sm md:text-base font-bubble">Senpai đã hoàn thành kỳ thi ma thuật của bộ từ vựng này rồi đó!</p>
+            <h1 className="text-3xl md:text-4xl font-extrabold text-pink-300 font-bubble">Lesson Completed!</h1>
+            <p className="text-pink-200/75 text-sm md:text-base font-bubble">You have finished practicing this vocabulary set!</p>
           </div>
 
           <KokoMascot 
             expression={wrongQuestions.length === 0 ? "happy" : "smile"}
             text={
               wrongQuestions.length === 0
-                ? "Sugoooi! Senpai đạt điểm tuyệt đối luôn kìa! Koko bái phục kỹ năng ghi nhớ siêu đẳng của Senpai nhaaa! 🏆💖✨ Koko thương Senpai nhất!"
-                : "Uưnn... Hoàn thành xuất sắc rồi Senpai ơi! Đúng được " + (quizQuestions.length - wrongQuestions.length) + "/" + quizQuestions.length + " từ cơ dợ! Hãy cùng Koko luyện tập lại các từ chưa thuộc nha! 💕🌻"
+                ? "Sugoooi! Perfect score! Koko admires your incredible memory skills! 🏆💖✨ You are the best!"
+                : "Excellent effort! You scored " + (quizQuestions.length - wrongQuestions.length) + "/" + quizQuestions.length + " correct words! Let's review the remaining ones together! 💕🌻"
             }
           />
 
           <div className="grid grid-cols-2 gap-4 font-bubble">
             <div className="bg-[#1c143d] p-6 rounded-3xl border-2 border-pink-500/20 text-center anime-shadow-emerald">
               <div className="text-4xl font-black text-emerald-400">{quizQuestions.length - wrongQuestions.length}</div>
-              <div className="text-xs font-bold text-pink-300/60 uppercase mt-1">Học thuộc 🌸</div>
+              <div className="text-xs font-bold text-pink-300/60 uppercase mt-1">Mastered 🌸</div>
             </div>
             <div className="bg-[#1c143d] p-6 rounded-3xl border-2 border-pink-500/20 text-center anime-shadow-pink">
               <div className="text-4xl font-black text-rose-400">{wrongQuestions.length}</div>
-              <div className="text-xs font-bold text-pink-300/60 uppercase mt-1">Cần luyện lại 😢</div>
+              <div className="text-xs font-bold text-pink-300/60 uppercase mt-1">Need Review 😢</div>
             </div>
           </div>
 
@@ -3615,20 +3618,20 @@ export default function App() {
                 onClick={handleReviewWrong}
                 className="w-full bg-pink-600 hover:bg-pink-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg anime-shadow-pink border-2 border-pink-400/50 cursor-pointer text-xs uppercase tracking-wider font-mono"
               >
-                Luyện lại từ lỗi sai ({wrongQuestions.length}) 🌟
+                Review Incorrect Terms ({wrongQuestions.length}) 🌟
               </button>
             )}
             <button 
               onClick={handleRestart}
               className="w-full bg-[#1c143d] hover:bg-[#281d54] text-pink-300 font-black py-4 rounded-2xl transition-all border-2 border-pink-500/30 cursor-pointer text-xs uppercase tracking-wider font-mono hover:text-white"
             >
-              Học lại từ đầu 🔄
+              Restart Practice 🔄
             </button>
           </div>
 
           {wrongQuestions.length > 0 && (
             <div className="space-y-4">
-              <h2 className="text-lg font-bold text-pink-300 font-bubble">Sổ tay sửa lỗi ma thuật 📓:</h2>
+              <h2 className="text-lg font-bold text-pink-300 font-bubble">Error Review Notebook 📓:</h2>
               <div className="space-y-3">
                 {wrongQuestions.map((q) => {
                   const correctOption = q.options.find(o => o.id === q.correctId);
@@ -3648,7 +3651,7 @@ export default function App() {
                       <button 
                         onClick={() => speak(correctOption?.text || '')} 
                         className="p-3 bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 text-pink-300 rounded-full transition-all cursor-pointer"
-                        title="Nghe phát âm"
+                        title="Listen to pronunciation"
                       >
                         <Volume2 className="w-5 h-5" />
                       </button>
@@ -3664,13 +3667,13 @@ export default function App() {
               onClick={() => setView('editor')}
               className="w-full text-pink-400 font-extrabold py-2 hover:text-pink-300 transition-colors text-center text-sm cursor-pointer"
             >
-              Chỉnh sửa bộ từ vựng ⚙️
+              Edit Vocabulary Set ⚙️
             </button>
             <button 
               onClick={() => setView('dashboard')}
               className="w-full text-pink-300/40 font-extrabold py-2 hover:text-pink-300/70 transition-colors text-center text-sm cursor-pointer"
             >
-              Về thư viện 🌸
+              Back to Library 🌸
             </button>
           </div>
         </div>
@@ -3702,14 +3705,14 @@ export default function App() {
             >
               <X className="w-5 h-5 shrink-0" />
             </button>
-            <h1 className="text-xl font-bold text-pink-300 font-bubble">Biên soạn ma pháp thuật</h1>
+            <h1 className="text-xl font-bold text-pink-300 font-bubble">Vocabulary Editor</h1>
           </div>
           <div className="flex items-center gap-2.5">
             <button 
               onClick={handleSaveEditor}
               className="px-6 py-2.5 bg-pink-600 hover:bg-pink-500 rounded-2xl font-black text-xs uppercase tracking-wider transition-all text-white shadow-lg anime-shadow-pink cursor-pointer border-2 border-pink-400/50"
             >
-              Lưu học phần ✨
+              Save Set ✨
             </button>
           </div>
         </header>
@@ -3720,20 +3723,20 @@ export default function App() {
             {/* Mascot advice */}
             <KokoMascot 
               expression="smile"
-              text="Senpai ơi! Tại đây, Senpai có thể biên soạn tiêu đề bộ từ và tự do thêm/xóa thuật ngữ ma pháp của riêng mình nhé! Koko đã trang bị sẵn tính năng nhập từ file Excel siêu cấp tiện lợi rồi đó! 🌸✏️"
+              text="Here you can edit the set title and freely add or remove vocabulary cards! You can also import cards directly from Excel or CSV files! 🌸✏️"
             />
 
             {/* Metadata Section */}
             <div className="bg-[#1c143d] border-2 border-pink-500/20 p-6 rounded-3xl space-y-6">
               <div className="space-y-4">
                 <div className="group">
-                  <label className="block text-[10px] font-black text-pink-300 uppercase tracking-widest mb-1.5 ml-1 font-bubble">Tiêu đề học phần 🌸</label>
+                  <label className="block text-[10px] font-black text-pink-300 uppercase tracking-widest mb-1.5 ml-1 font-bubble">Set Title 🌸</label>
                   <input 
                     type="text" 
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
                     className="w-full bg-[#0d0727] border-2 border-pink-500/20 p-4 text-lg font-extrabold focus:border-pink-500 focus:outline-none transition-all rounded-2xl text-pink-100 font-bubble"
-                    placeholder="Tiêu đề học phần..."
+                    placeholder="Set title..."
                   />
                 </div>
               </div>
@@ -3747,22 +3750,22 @@ export default function App() {
                     htmlFor="file-import"
                     className="flex items-center gap-2 bg-pink-600 hover:bg-pink-500 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all shadow-lg anime-shadow-pink border-2 border-pink-400/50 hover:-translate-y-0.5"
                   >
-                    <Plus className="w-4 h-4" /> Nhập từ Excel / CSV
+                    <Plus className="w-4 h-4" /> Import Excel / CSV
                   </label>
                   <button 
                     onClick={handleSwapColumns}
                     className="flex items-center gap-2 bg-[#1e1346] hover:bg-[#281d54] text-pink-300 border border-pink-500/20 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all hover:text-white"
-                    title="Đảo vị trí Thuật ngữ và Định nghĩa của toàn bộ các thẻ hiện tại"
+                    title="Swap Term and Definition columns for all cards"
                   >
-                    <ArrowLeftRight className="w-4 h-4 text-pink-400" /> Đảo 2 cột 🔄
+                    <ArrowLeftRight className="w-4 h-4 text-pink-400" /> Swap Columns 🔄
                   </button>
                 </div>
                 <div className="text-pink-300/60 text-xs font-bold font-bubble">
-                  Tổng cộng: <span className="text-pink-300 font-black">{editTerms.length} thẻ vựng</span>
+                  Total: <span className="text-pink-300 font-black">{editTerms.length} cards</span>
                 </div>
               </div>
               <p className="text-xs text-pink-200/60 leading-relaxed bg-[#0d0727] p-3 rounded-2xl border border-pink-500/10 font-bubble">
-                💡 <strong>Hướng dẫn Import nâng cao:</strong> Tải lên tệp Excel (.xlsx, .xls) chứa 2 hoặc 3 cột. Cột 1 là <strong>Từ vựng tiếng Anh</strong>, Cột 2 là <strong>Định nghĩa/Nghĩa tiếng Việt</strong>, Cột 3 (Tùy chọn) là <strong>Từ loại</strong> (Ví dụ: <em>n, v, adj, adv</em>) nhằm tự động kết hợp thành định dạng <strong>"Từ vựng (Từ loại)"</strong> giúp hệ thống tạo đáp án trắc nghiệm chuẩn xác hơn nhé!
+                💡 <strong>Import Guide:</strong> Upload an Excel (.xlsx, .xls) or CSV file with 2 or 3 columns. Column 1 is <strong>English Term</strong>, Column 2 is <strong>Definition/Meaning</strong>, Column 3 (Optional) is <strong>Part of Speech</strong> (e.g. <em>n, v, adj, adv</em>).
               </p>
             </div>
 
@@ -3771,19 +3774,19 @@ export default function App() {
               {editTerms.map((term, index) => (
                 <div key={term.id} className="bg-[#1c143d] rounded-3xl p-6 border-2 border-pink-500/10 group hover:border-pink-500/30 transition-all relative">
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-base font-black text-pink-400/50 font-bubble bg-[#0d0727] px-3.5 py-1 rounded-full border border-pink-500/10">Thẻ số {index + 1}</span>
+                    <span className="text-base font-black text-pink-400/50 font-bubble bg-[#0d0727] px-3.5 py-1 rounded-full border border-pink-500/10">Card #{index + 1}</span>
                     <div className="flex items-center gap-3">
                       <button 
                         onClick={() => speak(term.term)}
                         className="p-2 bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 hover:text-pink-100 rounded-full transition-colors cursor-pointer"
-                        title="Nghe phát âm"
+                        title="Listen to pronunciation"
                       >
                         <Volume2 className="w-4 h-4" />
                       </button>
                       <button 
                         onClick={() => removeTermRow(term.id)}
                         className="p-2 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white rounded-full transition-colors cursor-pointer"
-                        title="Xóa thẻ"
+                        title="Delete card"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -3792,23 +3795,23 @@ export default function App() {
                   
                   <div className="flex flex-col md:flex-row gap-6">
                     <div className="flex-1 space-y-1.5 focus-within:z-10">
-                      <label className="text-[10px] font-bold text-pink-300/50 uppercase tracking-widest font-bubble">Thuật ngữ tiếng Anh (Từ loại)</label>
+                      <label className="text-[10px] font-bold text-pink-300/50 uppercase tracking-widest font-bubble">English Term (Part of Speech)</label>
                       <input 
                         type="text" 
                         value={term.term}
                         onChange={(e) => updateTerm(term.id, 'term', e.target.value)}
                         className="w-full bg-[#0d0727] border-2 border-pink-500/10 rounded-2xl p-3 focus:border-pink-500/50 focus:outline-none transition-colors text-base font-bold text-white font-bubble"
-                        placeholder="Ví dụ: Elegance (n) hoặc Prevent (v)..."
+                        placeholder="e.g. Elegance (n) or Prevent (v)..."
                       />
                     </div>
                     <div className="flex-1 space-y-1.5">
-                      <label className="text-[10px] font-bold text-pink-300/50 uppercase tracking-widest font-bubble">Ý nghĩa / Định nghĩa tiếng Việt</label>
+                      <label className="text-[10px] font-bold text-pink-300/50 uppercase tracking-widest font-bubble">Definition / Meaning</label>
                       <input 
                         type="text" 
                         value={term.definition}
                         onChange={(e) => updateTerm(term.id, 'definition', e.target.value)}
                         className="w-full bg-[#0d0727] border-2 border-pink-500/10 rounded-2xl p-3 focus:border-pink-500/50 focus:outline-none transition-colors text-base font-bold text-white font-bubble"
-                        placeholder="Ví dụ: Sự thanh lịch..."
+                        placeholder="e.g. The quality of being graceful..."
                       />
                     </div>
                   </div>
@@ -3820,7 +3823,7 @@ export default function App() {
               onClick={addTermRow}
               className="w-full bg-[#1c143d] border-2 border-dashed border-pink-500/30 py-6 rounded-3xl text-sm font-black text-pink-300 hover:text-pink-100 hover:bg-pink-500/5 transition-all group cursor-pointer uppercase tracking-wider font-bubble"
             >
-              + THÊM THẺ MỚI 🌸
+              + ADD NEW CARD 🌸
             </button>
           </div>
         </main>
@@ -3843,27 +3846,27 @@ export default function App() {
           <div className="w-9 h-9 rounded-xl bg-pink-500/25 border border-pink-300 flex items-center justify-center">
             <span className="text-sm">🌸</span>
           </div>
-          <span className="font-bold text-pink-300 tracking-wide font-bubble">Thư viện của bạn</span>
+          <span className="font-bold text-pink-300 tracking-wide font-bubble">Your Library</span>
           <ChevronDown className="w-4 h-4 text-pink-300/60 rotate-90" />
-          <span className="text-xs bg-pink-600/30 text-pink-200 font-extrabold px-2.5 py-1 rounded-full border border-pink-500/20">Trắc nghiệm</span>
+          <span className="text-xs bg-pink-600/30 text-pink-200 font-extrabold px-2.5 py-1 rounded-full border border-pink-500/20">Quiz Mode</span>
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
           <button 
             onClick={() => {
-              if (window.confirm('Bạn có chắc chắn muốn làm lại từ đầu không? Toàn bộ tiến trình làm bài hiện tại của học phần này sẽ được thiếp lập lại.')) {
+              if (window.confirm('Are you sure you want to start over? All current progress for this set will be reset.')) {
                 handleRestart();
               }
             }}
             className="p-2.5 bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white rounded-xl transition-all border border-purple-500/30"
-            title="Làm lại từ đầu"
+            title="Start over"
           >
             <RefreshCw className="w-5 h-5" />
           </button>
           <button 
             onClick={handleShuffleQuiz}
             className="p-2.5 bg-pink-600/20 hover:bg-pink-600 text-pink-300 hover:text-white rounded-xl transition-all border border-pink-500/30"
-            title="Xáo trộn câu hỏi"
+            title="Shuffle questions"
           >
             <Shuffle className="w-5 h-5" />
           </button>
@@ -3872,7 +3875,7 @@ export default function App() {
             className="flex items-center gap-1.5 bg-[#1f1642] hover:bg-[#281d54] text-pink-200 border-2 border-pink-400/25 px-4 py-2 rounded-xl text-xs font-black transition-all"
           >
             <Plus className="w-3.5 h-3.5" />
-            Thêm từ vựng 🌟
+            Add Vocabulary 🌟
           </button>
           <button 
             onClick={() => setView('dashboard')}
@@ -3929,25 +3932,25 @@ export default function App() {
           }
           text={
             !showFeedback 
-              ? "Senpai ơi! Hãy tìm thuật ngữ tiếng Anh phù hợp nhất cho định nghĩa bên dưới nhé! Koko tin Senpai làm đúng 100%! Cố lên nào! ⭐🌸"
+              ? "Find the matching English term for the definition below! Koko knows you can do it! ⭐🌸"
               : isCorrect
-                ? "Kyaaa! Quá xuất sắc luôn Senpai ơi! ✨ Đúng y chóc! Từ vựng mới đã được thu phục vào ma bạ rồi! Koko tự hào cực kỳ! 🎉💖"
-                : "Ưnn... Tiếc quá đi Senpai. Nhầm một xíu xiu thôi. Đừng nản lòng nha, Senpai làm lại cực kỳ đỉnh luôn! Hãy ghi nhớ đáp án đúng nhé! 💕"
+                ? "Kyaaa! Brilliant work! ✨ Correct! Koko is super proud of you! 🎉💖"
+                : "Oh... Don't worry! Review the correct answer below and try again next time! 💕"
           }
         />
 
         <div className="space-y-2 bg-[#1e1445]/50 border-2 border-dashed border-pink-500/20 p-6 rounded-3xl mb-8 relative">
           <div className="absolute top-2.5 right-3 text-xs bg-pink-500/20 text-pink-300 font-extrabold px-2.5 py-0.5 rounded-full border border-pink-500/25 uppercase font-mono tracking-wider">
-            Định nghĩa ma thuật 🔮
+            Magic Definition 🔮
           </div>
-          <span className="text-pink-300/50 text-xs font-bold uppercase tracking-wider block">Nghĩa tiếng Việt</span>
+          <span className="text-pink-300/50 text-xs font-bold uppercase tracking-wider block">Definition</span>
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white font-bubble">
             {currentQuestion.definition}
           </h1>
         </div>
 
         <div className="space-y-4">
-          <p className="text-pink-300/60 text-xs font-black uppercase tracking-widest pl-1">Chọn đáp án ma thuật chính xác:</p>
+          <p className="text-pink-300/60 text-xs font-black uppercase tracking-widest pl-1">Select the correct answer:</p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {currentQuestion.options.map((option) => {
@@ -4015,7 +4018,7 @@ export default function App() {
             }}
             type="button"
             className="p-3 bg-pink-500/10 hover:bg-pink-500/20 active:scale-90 rounded-full transition-colors group cursor-pointer border border-pink-500/25"
-            title="Phát âm từ vựng"
+            title="Pronounce word"
           >
             <Volume2 className="w-5 h-5 text-pink-300 group-hover:text-pink-200 transition-colors" />
           </button>
@@ -4031,7 +4034,7 @@ export default function App() {
               }
             }}
           >
-            {showFeedback && !isCorrect ? "Tiếp tục bài học 🌸" : "Chưa thuộc từ này? Bỏ qua ⭐"}
+            {showFeedback && !isCorrect ? "Continue lesson 🌸" : "Skip this word ⭐"}
           </button>
         </div>
 
@@ -4055,7 +4058,7 @@ export default function App() {
                   <XCircle className="text-rose-400 shrink-0" />
                 )}
                 <span className="font-extrabold text-xs md:text-sm font-bubble">
-                  {isCorrect ? 'Tuyệt cú mèo! Đang chuyển câu sau...' : 'Tiếc quá! Senpai hãy xem kỹ và thử lại nhé!'}
+                  {isCorrect ? 'Awesome! Moving to the next question...' : 'Unfortunate! Check carefully and try again!'}
                 </span>
               </div>
               {!isCorrect && (
@@ -4063,7 +4066,7 @@ export default function App() {
                   onClick={handleNext}
                   className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl text-xs font-black transition-all border border-white/10 cursor-pointer"
                 >
-                  Xem câu tiếp theo 🌸
+                  Next Question 🌸
                 </button>
               )}
             </motion.div>

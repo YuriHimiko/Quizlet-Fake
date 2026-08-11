@@ -141,11 +141,11 @@ const parseListeningScript = (listeningText: string): DialogueLine[] => {
 };
 
 const SUGGESTED_TOPICS = [
-  { text: "Thám hiểm vũ trụ", english: "Space exploration & astronaut life", icon: "🌌" },
-  { text: "Cuộc thi nấu ăn", english: "A stressful masterchef cooking competition", icon: "🍳" },
-  { text: "Vương quốc rồng cổ tích", english: "An ancient fairy kingdom protected by friendly dragons", icon: "🏰" },
-  { text: "Cuộc sống học đường Anime", english: "A beautiful slice-of-life anime high school day", icon: "🏫" },
-  { text: "Hòn đảo hoang bí ẩn", english: "Survival and exploration on a mysterious tropical island", icon: "🏝️" }
+  { text: "Space Exploration", english: "Space exploration & astronaut life", icon: "🌌" },
+  { text: "Culinary Contest", english: "A stressful masterchef cooking competition", icon: "🍳" },
+  { text: "Fairy Realm", english: "An ancient fairy kingdom protected by friendly dragons", icon: "🏰" },
+  { text: "Anime Campus Life", english: "A beautiful slice-of-life anime high school day", icon: "🏫" },
+  { text: "Mysterious Island", english: "Survival and exploration on a mysterious tropical island", icon: "🏝️" }
 ];
 
 export default function AIGeneratorView({ studySet, onBack, speakText }: AIGeneratorViewProps) {
@@ -271,15 +271,15 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
 
   const handleGenerate = async () => {
     if (!topic.trim()) {
-      setError("Vui lòng nhập hoặc chọn một chủ đề yêu thích nhé Senpai! 🌸");
+      setError("Please enter or select a topic! 🌸");
       return;
     }
     if (selectedWords.length === 0) {
-      setError("Senpai hãy chọn ít nhất 1 từ vựng để Koko tích hợp vào bài học nhen! ✨");
+      setError("Please select at least 1 vocabulary item to include in the lesson! ✨");
       return;
     }
     if (selectedWords.length > 8) {
-      setError("Senpai ơi, chỉ nên chọn tối đa 8 từ vựng mỗi lần tạo thôi nhen! Việc này giúp Koko viết một câu chuyện thật tự nhiên, mạch lạc và tránh bị quá tải hệ thống đó ạ! 💕");
+      setError("Please select a maximum of 8 vocabulary items per lesson for natural and fluent storytelling! 💕");
       return;
     }
 
@@ -313,20 +313,20 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
         console.error("Non-JSON response received:", responseText);
         const isHtml = responseText.trim().startsWith("<") || responseText.includes("<!DOCTYPE") || responseText.includes("<html");
         if (isHtml || !response.ok || [500, 502, 503, 504, 404, 429].includes(response.status)) {
-          throw new Error("Máy chủ AI đang bận hoặc kết nối bị gián đoạn. Senpai vui lòng thử lại sau giây lát nhen! 💕");
+          throw new Error("AI service is currently busy. Please try again in a moment! 💕");
         }
-        throw new Error("Phản hồi từ máy chủ không hợp lệ. Senpai vui lòng thử lại nhen!");
+        throw new Error("Invalid response from server. Please try again!");
       }
 
       if (!response.ok) {
-        throw new Error(data?.error || "Gặp sự cố khi sinh nội dung.");
+        throw new Error(data?.error || "Error generating content.");
       }
 
       setExercise(data);
       setActiveTab('reading');
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Không thể kết nối tới vòm ma pháp Gemini. Senpai hãy kiểm tra lại khóa API hoặc kết nối internet nhé!");
+      setError(err.message || "Failed to connect to Gemini AI. Please check your API key or connection!");
     } finally {
       setLoading(false);
     }
@@ -380,21 +380,21 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
           <button 
             onClick={onBack}
             className="p-3 bg-white/5 hover:bg-pink-600/20 hover:text-pink-300 border border-white/10 rounded-2xl transition-all cursor-pointer group shrink-0"
-            title="Quay lại bảng điều khiển"
+            title="Back to dashboard"
           >
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
           </button>
           <div>
             <span className="text-pink-400 text-xs font-black tracking-widest uppercase flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '4s' }} /> Lớp Học Phép Thuật AI
+              <Sparkles className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '4s' }} /> AI Magic Classroom
             </span>
             <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight font-bubble flex items-center gap-2">
-              Sinh Bài Đọc & Nghe Tự Động 🔮
+              Auto Reading & Listening Generator 🔮
             </h1>
           </div>
         </div>
         <div className="text-sm bg-pink-500/10 border border-pink-500/25 px-4 py-2 rounded-2xl text-pink-300 font-bold font-bubble text-center">
-          Học phần: <span className="text-white">{studySet.title}</span>
+          Study Set: <span className="text-white">{studySet.title}</span>
         </div>
       </header>
 
@@ -407,14 +407,14 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
               <div className="bg-[#1c143d] border-2 border-pink-500/20 rounded-3xl p-6 shadow-xl relative">
                 <span className="absolute top-4 right-4 text-pink-500/30 text-xl">✍️</span>
                 <h3 className="text-lg font-black text-pink-200 mb-2 font-bubble flex items-center gap-2">
-                  1. Chủ đề yêu thích của Senpai
+                  1. Choose Your Preferred Topic
                 </h3>
                 <p className="text-xs text-white/50 mb-4 font-semibold">
-                  Nhập bất kỳ câu chuyện, hoàn cảnh hoặc chủ đề nào bạn muốn (ví dụ: thám hiểm biển sâu, tiệm trà chiều anime, cuộc đua xe gay cấn,...)
+                  Enter any story, situation, or theme you like (e.g. deep sea exploration, afternoon tea, high-speed racing...)
                 </p>
                 <input 
                   type="text"
-                  placeholder="Ví dụ: Một ngày thám hiểm không gian đầy kỳ diệu..."
+                  placeholder="e.g. A magical day exploring space..."
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
                   className="w-full bg-[#0b0821] border-2 border-pink-500/20 focus:border-pink-500 outline-none rounded-2xl px-5 py-4 text-white font-semibold transition-all shadow-inner placeholder-white/30 text-base"
@@ -423,7 +423,7 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                 {/* Templates list */}
                 <div className="mt-5">
                   <span className="text-xs text-pink-300/60 font-bold uppercase tracking-wider block mb-2.5">
-                    💡 Gợi ý nhanh cho Senpai:
+                    💡 Quick suggestions:
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {SUGGESTED_TOPICS.map((t, idx) => (
@@ -444,10 +444,10 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
               <div className="bg-[#1c143d] border-2 border-pink-500/20 rounded-3xl p-6 shadow-xl relative">
                 <span className="absolute top-4 right-4 text-pink-500/30 text-xl">🎙️</span>
                 <h3 className="text-lg font-black text-pink-200 mb-2 font-bubble flex items-center gap-2">
-                  2. Định dạng & Độ dài bài nghe 🎧
+                  2. Audio Format & Length 🎧
                 </h3>
                 <p className="text-xs text-white/50 mb-4 font-semibold">
-                  Senpai muốn luyện nghe kiểu đối thoại ngắn hay bài nói/độc thoại dài hơn nè?
+                  Would you prefer a short conversational dialogue or a longer monologue/lecture?
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -462,17 +462,17 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                     <div>
                       <div className="flex items-center gap-2 mb-1.5">
                         <span className="text-lg">💬</span>
-                        <h4 className="font-extrabold text-sm text-pink-200 font-bubble">Hội thoại ngắn (Short Dialogue)</h4>
+                        <h4 className="font-extrabold text-sm text-pink-200 font-bubble">Short Dialogue</h4>
                       </div>
                       <p className="text-xs text-white/70 leading-relaxed font-medium">
-                        Cuộc thảo luận, trò chuyện sinh động giữa các nhân vật qua lại về chủ đề. Phù hợp luyện phản xạ hội thoại hằng ngày.
+                        Lively interactive dialogue between characters. Great for daily conversation practice.
                       </p>
                     </div>
                     <div className="mt-3 flex items-center justify-end">
                       <span className={`text-[10px] px-2.5 py-1 rounded-full font-black ${
                         listeningFormat === 'dialogue' ? 'bg-pink-500 text-white' : 'bg-white/5 text-white/40'
                       }`}>
-                        Mặc định
+                        Default
                       </span>
                     </div>
                   </div>
@@ -488,17 +488,17 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                     <div>
                       <div className="flex items-center gap-2 mb-1.5">
                         <span className="text-lg">🎙️</span>
-                        <h4 className="font-extrabold text-sm text-pink-200 font-bubble">Bài giảng / Độc thoại dài (Long Monologue)</h4>
+                        <h4 className="font-extrabold text-sm text-pink-200 font-bubble">Long Monologue / Presentation</h4>
                       </div>
                       <p className="text-xs text-white/70 leading-relaxed font-medium">
-                        Bài độc thoại, thuyết trình hoặc bài giảng học thuật chi tiết và dài hơn. Phù hợp cho việc nâng cấp từ vựng học thuật.
+                        Detailed academic monologue, presentation, or lecture. Ideal for expanding formal vocabulary.
                       </p>
                     </div>
                     <div className="mt-3 flex items-center justify-end">
                       <span className={`text-[10px] px-2.5 py-1 rounded-full font-black ${
                         listeningFormat === 'monologue' ? 'bg-pink-500 text-white' : 'bg-white/5 text-white/40'
                       }`}>
-                        Chuyên sâu 🔥
+                        Advanced 🔥
                       </span>
                     </div>
                   </div>
@@ -515,9 +515,9 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                     className="bg-[#1e1144] border-2 border-pink-500/30 rounded-3xl p-8 shadow-2xl flex flex-col items-center text-center space-y-4"
                   >
                     <Loader2 className="w-12 h-12 text-pink-500 animate-spin" />
-                    <h3 className="text-xl font-black text-pink-200 font-bubble">Gemini đang dệt ma pháp... ✨</h3>
+                    <h3 className="text-xl font-black text-pink-200 font-bubble">Gemini is generating your lesson... ✨</h3>
                     <p className="text-sm text-pink-100/75 max-w-md leading-relaxed font-semibold">
-                      Koko đang cùng vòm ma pháp Gemini biên soạn một bài đọc kì thú và cuộc đối thoại sinh động tích hợp các từ vựng của Senpai. Đợi một tí nhen! 💕
+                      Koko and Gemini are crafting an engaging passage and custom listening dialogue featuring your vocabulary. Please wait a moment! 💕
                     </p>
                   </motion.div>
                 )}
@@ -537,7 +537,7 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                   className="w-full bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-400 hover:via-purple-500 hover:to-indigo-500 text-white font-black py-4.5 rounded-2xl shadow-lg hover:shadow-pink-500/20 transition-all text-base tracking-wider uppercase flex items-center justify-center gap-2.5 cursor-pointer transform active:scale-98"
                 >
                   <Sparkles className="w-5 h-5 animate-pulse" />
-                  Bắt đầu truyền ma thuật (Tạo bài học) ✨
+                  Generate Lesson ✨
                 </button>
               )}
             </div>
@@ -546,14 +546,14 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
             <div className="bg-[#1c143d] border-2 border-pink-500/20 rounded-3xl p-6 shadow-xl h-fit">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-black text-pink-200 font-bubble">
-                  3. Chọn từ vựng 🏷️
+                  3. Select Vocabulary 🏷️
                 </h3>
                 <span className="text-xs font-bold text-pink-400">
-                  Đã chọn: {selectedWords.length}
+                  Selected: {selectedWords.length}
                 </span>
               </div>
               <p className="text-xs text-white/50 mb-4 font-semibold leading-relaxed">
-                Koko sẽ ưu tiên chèn những từ này vào nội dung câu chuyện tiếng Anh.
+                These vocabulary items will be naturally integrated into the lesson.
               </p>
 
               <div className="flex gap-2 mb-4">
@@ -561,13 +561,13 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                   onClick={handleSelectAll}
                   className="flex-1 bg-white/5 hover:bg-white/10 text-white text-[11px] font-black py-1.5 rounded-lg border border-white/10 transition-colors cursor-pointer"
                 >
-                  Chọn tất cả
+                  Select All
                 </button>
                 <button
                   onClick={handleDeselectAll}
                   className="flex-1 bg-white/5 hover:bg-white/10 text-white/60 text-[11px] font-black py-1.5 rounded-lg border border-white/10 transition-colors cursor-pointer"
                 >
-                  Bỏ chọn tất cả
+                  Deselect All
                 </button>
               </div>
 
@@ -608,7 +608,7 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
             {/* Topic display banner */}
             <div className="bg-gradient-to-r from-pink-900/40 to-purple-900/40 border-2 border-pink-500/30 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
               <div>
-                <span className="text-xs font-black text-pink-300 uppercase tracking-wider block mb-1">Chủ đề của bài học:</span>
+                <span className="text-xs font-black text-pink-300 uppercase tracking-wider block mb-1">Lesson Topic:</span>
                 <h2 className="text-xl md:text-2xl font-extrabold text-white font-bubble">
                   ✨ "{topic}"
                 </h2>
@@ -617,7 +617,7 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                 onClick={() => setExercise(null)}
                 className="bg-white/5 hover:bg-white/10 text-white border border-white/10 text-xs font-black px-4 py-2.5 rounded-xl transition-all cursor-pointer shrink-0"
               >
-                Tạo chủ đề khác 🔮
+                Choose Another Topic 🔮
               </button>
             </div>
 
@@ -635,7 +635,7 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                 }`}
               >
                 <BookOpen className="w-4 h-4" />
-                <span>Bài Đọc 📖</span>
+                <span>Reading 📖</span>
               </button>
               <button
                 onClick={() => setActiveTab('listening')}
@@ -646,7 +646,7 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                 }`}
               >
                 <Headphones className="w-4 h-4" />
-                <span>Bài Nghe 🎧</span>
+                <span>Listening 🎧</span>
               </button>
               <button
                 onClick={() => {
@@ -660,7 +660,7 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                 }`}
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>Thử Thách ⚡</span>
+                <span>Quiz ⚡</span>
               </button>
             </div>
 
@@ -675,10 +675,10 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                   <div className="flex items-center justify-between border-b border-white/5 pb-3">
                     <h3 className="text-lg font-black text-pink-200 font-bubble flex items-center gap-2">
                       <BookOpen className="w-5 h-5 text-pink-400" />
-                      Bài Đọc Học Tập (English Reading)
+                      English Reading Practice
                     </h3>
                     <span className="text-[10px] uppercase font-black bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 px-2.5 py-1 rounded-full tracking-wider font-mono">
-                      Cấp độ tự nhiên B1-B2
+                      Level B1-B2
                     </span>
                   </div>
 
@@ -688,10 +688,10 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
 
                   <div className="mt-8 p-4 bg-[#0e0a26]/80 border border-pink-500/20 rounded-2xl">
                     <span className="text-xs font-black text-pink-300 uppercase tracking-widest block mb-1">
-                      💡 Mẹo của Koko-chan:
+                      💡 Koko-chan's Tip:
                     </span>
                     <p className="text-xs text-white/70 leading-relaxed font-semibold">
-                      Senpai hãy đọc to phần tiếng Anh ở trên nhé! Những từ màu hồng nổi bật chính là từ vựng ma thuật có trong học phần của Senpai đấy! Di chuột hoặc nhấp vào để ghi nhớ kĩ hơn nha.
+                      Read the text aloud! Highlighted pink words are your target vocabulary items. Hover or click to study them closely.
                     </p>
                   </div>
                 </motion.div>
@@ -706,10 +706,10 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                   <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/5 pb-4 gap-3">
                     <h3 className="text-lg font-black text-pink-200 font-bubble flex items-center gap-2">
                       <Headphones className="w-5 h-5 text-pink-400" />
-                      Luyện Nghe Ma Pháp (Audio Script & Player)
+                      Listening Practice (Audio Script & Player)
                     </h3>
                     <span className="text-[10px] uppercase font-black bg-pink-500/15 border border-pink-500/25 text-pink-400 px-2.5 py-1 rounded-full tracking-wider font-mono self-start md:self-auto">
-                      Hỗ trợ phát âm AI 🎙️
+                      AI Voice Powered 🎙️
                     </span>
                   </div>
 
@@ -719,31 +719,31 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                       <button
                         onClick={playSpeech}
                         className="w-12 h-12 rounded-full bg-pink-500 hover:bg-pink-400 flex items-center justify-center text-white cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-md shadow-pink-500/20"
-                        title="Phát âm thanh"
+                        title="Play audio"
                       >
                         <Play className="w-5 h-5 fill-current ml-0.5" />
                       </button>
                       <button
                         onClick={pauseSpeech}
                         className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white cursor-pointer transition-all active:scale-95"
-                        title="Tạm dừng / Tiếp tục"
+                        title="Pause / Resume"
                       >
                         <Pause className="w-4 h-4" />
                       </button>
                       <button
                         onClick={stopSpeech}
                         className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white cursor-pointer transition-all active:scale-95"
-                        title="Dừng phát âm"
+                        title="Stop audio"
                       >
                         <RotateCcw className="w-4 h-4" />
                       </button>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-6 w-full md:w-auto shrink-0">
-                      {/* Chọn giới tính giọng đọc cho học phần */}
+                      {/* Gender voice selector for study set */}
                       <div className="flex-1 md:flex-initial flex flex-col gap-1.5 min-w-[170px]">
                         <span className="text-[11px] font-black uppercase text-pink-300 tracking-wider font-mono flex items-center gap-1">
-                          <Volume2 className="w-3.5 h-3.5" /> Giọng đọc học phần:
+                          <Volume2 className="w-3.5 h-3.5" /> Module Voice:
                         </span>
                         <div className="flex items-center gap-1 bg-[#16103a] border-2 border-white/10 p-1 rounded-xl">
                           <button
@@ -753,7 +753,7 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                               voiceGender === 'female' ? 'bg-pink-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
                             }`}
                           >
-                            ♀️ Giọng Nữ
+                            ♀️ Female
                           </button>
                           <button
                             type="button"
@@ -762,13 +762,13 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                               voiceGender === 'male' ? 'bg-indigo-500 text-white shadow-md' : 'text-pink-200/70 hover:text-white'
                             }`}
                           >
-                            ♂️ Giọng Nam
+                            ♂️ Male
                           </button>
                         </div>
                       </div>
 
                       <div className="flex-1 md:flex-initial flex items-center gap-2.5 min-w-32">
-                        <span className="text-[11px] font-black text-pink-300 font-mono">Tốc độ: {speechRate}x</span>
+                        <span className="text-[11px] font-black text-pink-300 font-mono">Speed: {speechRate}x</span>
                         <input 
                           type="range"
                           min="0.5"
@@ -781,7 +781,7 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                       </div>
 
                       <div className="flex-1 md:flex-initial flex items-center gap-2.5 min-w-32">
-                        <span className="text-[11px] font-black text-pink-300 font-mono">Cao độ: {speechPitch}</span>
+                        <span className="text-[11px] font-black text-pink-300 font-mono">Pitch: {speechPitch}</span>
                         <input 
                           type="range"
                           min="0.5"
@@ -798,7 +798,7 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                   {/* Beautiful Chat-Style Dialogue Feed */}
                   <div className="space-y-4 max-h-[500px] overflow-y-auto p-4 bg-[#09061d]/80 rounded-2xl border border-white/5 scrollbar-thin">
                     {parseListeningScript(exercise.listening).map((line, idx) => {
-                      const isTeacher = line.speaker.toLowerCase().includes('teacher') || line.speaker.toLowerCase().includes('giáo viên');
+                      const isTeacher = line.speaker.toLowerCase().includes('teacher') || line.speaker.toLowerCase().includes('lecturer');
                       const isYuki = line.speaker.toLowerCase().includes('yuki');
                       const isHiro = line.speaker.toLowerCase().includes('hiro');
                       
@@ -842,10 +842,10 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                                 <button
                                   onClick={() => playLineSpeech(line.text)}
                                   className="md:opacity-0 group-hover:opacity-100 p-1 bg-white/5 hover:bg-pink-600 text-white/70 hover:text-white rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-[10px] font-bold"
-                                  title="Nghe riêng dòng này"
+                                  title="Listen to this line"
                                 >
                                   <Volume2 className="w-3.5 h-3.5" />
-                                  <span>Nghe dòng này 🎧</span>
+                                  <span>Listen line 🎧</span>
                                 </button>
                               </div>
                             )}
@@ -870,10 +870,10 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                   <div className="flex items-center justify-between border-b border-white/5 pb-3">
                     <h3 className="text-lg font-black text-pink-200 font-bubble flex items-center gap-2">
                       <MessageSquare className="w-5 h-5 text-pink-400" />
-                      Thử Thách Đọc Hiểu Ma Thuật (5 Questions)
+                      Comprehension Challenge (5 Questions)
                     </h3>
                     <span className="text-xs font-black bg-pink-500/20 text-pink-300 px-3 py-1 rounded-xl border border-pink-400/20">
-                      Điểm: {quizAnswers.filter((a, idx) => a === exercise.questions[idx].correctIndex).length}/5 đúng
+                      Score: {quizAnswers.filter((a, idx) => a === exercise.questions[idx].correctIndex).length}/5 correct
                     </span>
                   </div>
 
@@ -886,7 +886,7 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                       return (
                         <div key={qIdx} className="bg-[#0f0a28]/60 border border-white/5 rounded-2xl p-5 relative space-y-4">
                           <span className="absolute -top-3.5 left-4 bg-pink-600 text-white text-[10px] font-mono px-3 py-1 rounded-xl shadow-md border border-pink-300">
-                            CÂU HỎI {qIdx + 1}
+                            QUESTION {qIdx + 1}
                           </span>
 
                           <h4 className="text-base font-extrabold text-white pt-2 font-bubble">
@@ -950,7 +950,7 @@ export default function AIGeneratorView({ studySet, onBack, speakText }: AIGener
                               >
                                 <Lightbulb className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                                 <div>
-                                  <span className="font-extrabold uppercase text-amber-400 block mb-1">Giải thích phép thuật:</span>
+                                  <span className="font-extrabold uppercase text-amber-400 block mb-1">Explanation:</span>
                                   <span>{q.explanation}</span>
                                 </div>
                               </motion.div>

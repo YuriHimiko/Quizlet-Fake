@@ -125,9 +125,9 @@ export const fetchDictionaryAudioUrl = async (term: string): Promise<string | nu
 /**
  * Generates Google Studio TTS audio stream URL
  */
-export const getGoogleTtsUrl = (text: string, lang: 'en-US' | 'en-GB' = 'en-US'): string => {
+export const getGoogleTtsUrl = (text: string, lang: 'en-US' | 'en-GB' = 'en-GB'): string => {
   const cleanText = text.replace(/[*_#`]/g, '').trim();
-  const langCode = lang === 'en-GB' ? 'en-GB' : 'en-US';
+  const langCode = lang === 'en-US' ? 'en-US' : 'en-GB';
   return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText)}&tl=${langCode}&client=tw-ob`;
 };
 
@@ -144,7 +144,7 @@ export const playStandardAudio = async (
   const cleanText = text.replace(/[*_#`]/g, '').trim();
   if (!cleanText) return;
 
-  const lang = options.lang || (localStorage.getItem('koko_accent') as 'en-GB' | 'en-US') || 'en-US';
+  const lang = options.lang || (localStorage.getItem('koko_accent') as 'en-GB' | 'en-US') || 'en-GB';
   const rate = options.rate || 1.0;
   const gender = options.gender || getVoiceGender();
 
@@ -214,13 +214,14 @@ const fallbackToSpeechSynthesis = (text: string, options: PlayAudioOptions = {},
   try {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    const lang = options.lang || (localStorage.getItem('koko_accent') as 'en-GB' | 'en-US') || 'en-US';
+    const lang = options.lang || (localStorage.getItem('koko_accent') as 'en-GB' | 'en-US') || 'en-GB';
     utterance.lang = lang;
     utterance.rate = options.rate || 1.0;
 
     const gender = options.gender || getVoiceGender();
     const voices = window.speechSynthesis.getVoices();
-    const englishVoices = voices.filter(v => v.lang.toLowerCase().startsWith('en'));
+    const ukVoices = voices.filter(v => v.lang.toLowerCase().replace('_', '-').includes('en-gb') || v.name.toLowerCase().includes('uk') || v.name.toLowerCase().includes('british'));
+    const englishVoices = ukVoices.length > 0 ? [...ukVoices, ...voices.filter(v => v.lang.toLowerCase().startsWith('en'))] : voices.filter(v => v.lang.toLowerCase().startsWith('en'));
 
     if (gender === 'male') {
       utterance.pitch = options.pitch ?? 0.82;
@@ -229,7 +230,8 @@ const fallbackToSpeechSynthesis = (text: string, options: PlayAudioOptions = {},
         return name.includes('male') || name.includes('david') || name.includes('george') || 
                name.includes('alex') || name.includes('daniel') || name.includes('guy') || 
                name.includes('james') || name.includes('mark') || name.includes('richard') || 
-               name.includes('oliver') || name.includes('matthew') || name.includes('thomas');
+               name.includes('oliver') || name.includes('matthew') || name.includes('thomas') ||
+               name.includes('arthur');
       });
       if (maleVoice) {
         utterance.voice = maleVoice;
@@ -239,10 +241,11 @@ const fallbackToSpeechSynthesis = (text: string, options: PlayAudioOptions = {},
       utterance.pitch = options.pitch ?? 1.12;
       const femaleVoice = englishVoices.find(v => {
         const name = v.name.toLowerCase();
-        return name.includes('female') || name.includes('zira') || name.includes('samantha') || 
-               name.includes('victoria') || name.includes('google us english') || name.includes('jenny') || 
-               name.includes('karen') || name.includes('siri') || name.includes('moira') || 
-               name.includes('fiona') || name.includes('ava');
+        return name.includes('female') || name.includes('hazel') || name.includes('serena') || 
+               name.includes('kate') || name.includes('victoria') || name.includes('zira') || 
+               name.includes('samantha') || name.includes('jenny') || name.includes('karen') || 
+               name.includes('siri') || name.includes('moira') || name.includes('fiona') || 
+               name.includes('ava') || name.includes('alice');
       });
       if (femaleVoice) {
         utterance.voice = femaleVoice;
@@ -256,6 +259,9 @@ const fallbackToSpeechSynthesis = (text: string, options: PlayAudioOptions = {},
         if (found) {
           utterance.voice = found;
         }
+      } else if (ukVoices.length > 0) {
+        utterance.voice = ukVoices[0];
+        utterance.lang = ukVoices[0].lang;
       }
     }
 
