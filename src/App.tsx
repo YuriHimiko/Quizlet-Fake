@@ -32,11 +32,18 @@ import {
   Lock,
   Sparkles,
   Key,
-  AlertCircle
+  AlertCircle,
+  SpellCheck,
+  Wand2,
+  AlertTriangle,
+  Lightbulb,
+  CheckCheck,
+  ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as xlsx from 'xlsx';
 import { playStandardAudio, stopAllAudio, getVoiceGender, setVoiceGender } from './utils/audioService';
+import { SpellCheckResult, checkSingleTermLocal, checkTermsWithAI } from './utils/spellChecker';
 import { 
   googleSignIn, 
   logout, 
@@ -1503,6 +1510,32 @@ export default function App() {
   const [editTerms, setEditTerms] = useState<{ id: number; term: string; definition: string }[]>([]);
   const [editTitle, setEditTitle] = useState(new Date().toLocaleDateString('vi-VN'));
 
+  // Spell check states for Vocabulary Editor
+  const [spellCheckResults, setSpellCheckResults] = useState<Map<string | number, SpellCheckResult>>(new Map<string | number, SpellCheckResult>());
+  const [isSpellChecking, setIsSpellChecking] = useState(false);
+  const [autoCheckEnabled, setAutoCheckEnabled] = useState(true);
+  const [spellCheckNotice, setSpellCheckNotice] = useState<{ type: 'success' | 'warning' | 'info' | 'error'; message: string } | null>(null);
+  const [showPreSaveModal, setShowPreSaveModal] = useState(false);
+
+  // Real-time local heuristic spellcheck when editTerms change
+  useEffect(() => {
+    if (view !== 'editor' || !autoCheckEnabled) return;
+
+    setSpellCheckResults(prev => {
+      const updated = new Map<string | number, SpellCheckResult>(prev);
+      for (const t of editTerms) {
+        const currentRes: SpellCheckResult | undefined = updated.get(t.id);
+        const localRes: SpellCheckResult = checkSingleTermLocal(t.id, t.term, t.definition, editTerms);
+        
+        // If local found an error or if there was no active AI error, update with local check
+        if (localRes.hasIssue || !currentRes?.hasIssue) {
+          updated.set(t.id, localRes);
+        }
+      }
+      return updated;
+    });
+  }, [editTerms, view, autoCheckEnabled]);
+
   // Sync to localStorage and set default EN-UK accent
   useEffect(() => {
     localStorage.setItem('english_quiz_sets', JSON.stringify(studySets));
@@ -1788,10 +1821,142 @@ export default function App() {
       setEditTitle('Học phần mới');
       setEditTerms([{ id: Date.now(), term: '', definition: '' }]);
     }
+    setSpellCheckResults(new Map());
+    setSpellCheckNotice(null);
+    setShowPreSaveModal(false);
     setView('editor');
   };
 
-  const handleSaveEditor = () => {
+  const handleRunAISpellCheck = async () => {
+    const activeTerms = editTerms.filter(t => t.term.trim() || t.definition.trim());
+    if (activeTerms.length === 0) {
+      setSpellCheckNotice({
+        type: 'info',
+        message: 'Chưa có từ vựng nào để kiểm tra. Hãy thêm từ vựng trước nhé! 🌸'
+      });
+      return;
+    }
+
+    setIsSpellChecking(true);
+    setSpellCheckNotice(null);
+
+    try {
+      const results = await checkTermsWithAI(editTerms);
+      setSpellCheckResults(results);
+
+      let issueCount = 0;
+      results.forEach(res => {
+        if (res.hasIssue && res.issueType !== 'none') {
+          issueCount++;
+        }
+      });
+
+      if (issueCount === 0) {
+        setSpellCheckNotice({
+          type: 'success',
+          message: 'Tuyệt vời! Toàn bộ từ vựng & ngữ nghĩa đã được kiểm tra chính xác 100%! 🌟✨'
+        });
+      } else {
+        setSpellCheckNotice({
+          type: 'warning',
+          message: `Phát hiện ${issueCount} thẻ có gợi ý sửa lỗi chính tả hoặc chuẩn hóa từ loại. Senpai xem chi tiết bên dưới nhé! 🌸`
+        });
+      }
+    } catch (err: any) {
+      console.error('Spellcheck error:', err);
+      setSpellCheckNotice({
+        type: 'error',
+        message: 'Đã hoàn tất kiểm tra chính tả với bộ từ điển nội bộ! 📴'
+      });
+    } finally {
+      setIsSpellChecking(false);
+    }
+  };
+
+  const handleApplyCorrection = (id: string | number, suggestedTerm?: string, suggestedDefinition?: string) => {
+    setEditTerms(prev => prev.map(t => {
+      if (t.id === id) {
+        return {
+          ...t,
+          term: suggestedTerm !== undefined ? suggestedTerm : t.term,
+          definition: suggestedDefinition !== undefined ? suggestedDefinition : t.definition
+        };
+      }
+      return t;
+    }));
+
+    setSpellCheckResults(prev => {
+      const nextMap = new Map(prev);
+      nextMap.set(id, {
+        id,
+        hasIssue: false,
+        issueType: 'none',
+        severity: 'info'
+      });
+      return nextMap;
+    });
+  };
+
+  const handleApplyAllCorrections = () => {
+    let appliedCount = 0;
+    setEditTerms(prev => prev.map(t => {
+      const res = spellCheckResults.get(t.id);
+      if (res && res.hasIssue && (res.suggestedTerm || res.suggestedDefinition)) {
+        appliedCount++;
+        return {
+          ...t,
+          term: res.suggestedTerm || t.term,
+          definition: res.suggestedDefinition || t.definition
+        };
+      }
+      return t;
+    }));
+
+    setSpellCheckResults(prev => {
+      const nextMap = new Map<string | number, SpellCheckResult>(prev);
+      nextMap.forEach((val: SpellCheckResult, key: string | number) => {
+        if (val.hasIssue) {
+          nextMap.set(key, { ...val, hasIssue: false, issueType: 'none' });
+        }
+      });
+      return nextMap;
+    });
+
+    setSpellCheckNotice({
+      type: 'success',
+      message: `Đã tự động sửa xong toàn bộ ${appliedCount} từ vựng và định nghĩa! ✨🌸`
+    });
+  };
+
+  const handleDismissCorrection = (id: string | number) => {
+    setSpellCheckResults(prev => {
+      const nextMap = new Map<string | number, SpellCheckResult>(prev);
+      nextMap.set(id, {
+        id,
+        hasIssue: false,
+        issueType: 'none',
+        severity: 'info'
+      });
+      return nextMap;
+    });
+  };
+
+  const handleSaveEditor = (forceSave: boolean = false) => {
+    // Check if there are outstanding spelling errors before saving
+    if (!forceSave) {
+      let hasErrors = false;
+      spellCheckResults.forEach(res => {
+        if (res.hasIssue && res.issueType === 'spelling') {
+          hasErrors = true;
+        }
+      });
+      if (hasErrors) {
+        setShowPreSaveModal(true);
+        return;
+      }
+    }
+    setShowPreSaveModal(false);
+
     // Collect all unique words available for distractors - ONLY from current study set terms!
     const allAvailableWords = editTerms.map(t => {
       const match = t.term.match(/(.*)\((.*)\)/);
@@ -3723,8 +3888,42 @@ export default function App() {
             {/* Mascot advice */}
             <KokoMascot 
               expression="smile"
-              text="Here you can edit the set title and freely add or remove vocabulary cards! You can also import cards directly from Excel or CSV files! 🌸✏️"
+              text="Here you can edit the set title, check spelling errors with AI, and freely customize vocabulary cards! 🌸✏️"
             />
+
+            {/* Spell Check Notification Banner */}
+            <AnimatePresence>
+              {spellCheckNotice && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className={`p-4 rounded-3xl border-2 flex items-center justify-between gap-3 font-bubble ${
+                    spellCheckNotice.type === 'success'
+                      ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'
+                      : spellCheckNotice.type === 'warning'
+                      ? 'bg-amber-950/40 border-amber-500/30 text-amber-200'
+                      : spellCheckNotice.type === 'error'
+                      ? 'bg-rose-950/40 border-rose-500/30 text-rose-200'
+                      : 'bg-indigo-950/40 border-indigo-500/30 text-indigo-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {spellCheckNotice.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
+                    {spellCheckNotice.type === 'warning' && <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />}
+                    {spellCheckNotice.type === 'error' && <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />}
+                    {spellCheckNotice.type === 'info' && <Sparkles className="w-5 h-5 text-indigo-400 shrink-0" />}
+                    <span className="text-xs sm:text-sm font-bold leading-relaxed">{spellCheckNotice.message}</span>
+                  </div>
+                  <button 
+                    onClick={() => setSpellCheckNotice(null)}
+                    className="p-1 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Metadata Section */}
             <div className="bg-[#1c143d] border-2 border-pink-500/20 p-6 rounded-3xl space-y-6">
@@ -3742,81 +3941,231 @@ export default function App() {
               </div>
             </div>
 
-            {/* Toolbar */}
-            <div className="flex flex-col gap-3 py-5 bg-[#1c143d] p-5 rounded-3xl border-2 border-pink-500/20">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-bubble">
-                <div className="flex flex-wrap gap-3">
+            {/* Toolbar & Spellcheck Actions */}
+            <div className="flex flex-col gap-4 py-5 bg-[#1c143d] p-5 rounded-3xl border-2 border-pink-500/20">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 font-bubble">
+                <div className="flex flex-wrap items-center gap-3">
                   <label 
                     htmlFor="file-import"
-                    className="flex items-center gap-2 bg-pink-600 hover:bg-pink-500 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all shadow-lg anime-shadow-pink border-2 border-pink-400/50 hover:-translate-y-0.5"
+                    className="flex items-center gap-2 bg-pink-600 hover:bg-pink-500 text-white px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all shadow-lg anime-shadow-pink border-2 border-pink-400/50 hover:-translate-y-0.5"
                   >
                     <Plus className="w-4 h-4" /> Import Excel / CSV
                   </label>
+                  
+                  {/* AI Spellcheck Button */}
+                  <button 
+                    onClick={handleRunAISpellCheck}
+                    disabled={isSpellChecking}
+                    className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all shadow-lg shadow-purple-500/20 border-2 border-purple-400/50 hover:-translate-y-0.5 disabled:opacity-50"
+                    title="Kiểm tra toàn diện lỗi chính tả, từ loại và ngữ nghĩa"
+                  >
+                    {isSpellChecking ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-pink-200" />
+                        Đang quét chính tả... 🔮
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-amber-300" />
+                        Kiểm tra chính tả AI ✨
+                      </>
+                    )}
+                  </button>
+
+                  {/* Auto-fix all button if issues found */}
+                  {Array.from(spellCheckResults.values()).some((r: SpellCheckResult) => r.hasIssue && (r.suggestedTerm || r.suggestedDefinition)) && (
+                    <button 
+                      onClick={handleApplyAllCorrections}
+                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all shadow-lg shadow-emerald-500/20 border-2 border-emerald-400/50 hover:-translate-y-0.5"
+                      title="Áp dụng tất cả các từ và định nghĩa được gợi ý sửa lỗi"
+                    >
+                      <Wand2 className="w-4 h-4" />
+                      Tự động sửa tất cả ⚡
+                    </button>
+                  )}
+
                   <button 
                     onClick={handleSwapColumns}
-                    className="flex items-center gap-2 bg-[#1e1346] hover:bg-[#281d54] text-pink-300 border border-pink-500/20 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all hover:text-white"
+                    className="flex items-center gap-2 bg-[#1e1346] hover:bg-[#281d54] text-pink-300 border border-pink-500/20 px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all hover:text-white"
                     title="Swap Term and Definition columns for all cards"
                   >
-                    <ArrowLeftRight className="w-4 h-4 text-pink-400" /> Swap Columns 🔄
+                    <ArrowLeftRight className="w-4 h-4 text-pink-400" /> Swap 🔄
                   </button>
                 </div>
-                <div className="text-pink-300/60 text-xs font-bold font-bubble">
-                  Total: <span className="text-pink-300 font-black">{editTerms.length} cards</span>
+
+                <div className="flex items-center gap-3 self-end lg:self-center">
+                  {/* Auto-check switch */}
+                  <button
+                    onClick={() => setAutoCheckEnabled(!autoCheckEnabled)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-colors cursor-pointer ${
+                      autoCheckEnabled 
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
+                        : 'bg-white/5 border-white/10 text-white/40'
+                    }`}
+                    title="Bật/Tắt tự động kiểm tra chính tả tức thì khi gõ"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Tự động kiểm tra: {autoCheckEnabled ? 'BẬT' : 'TẮT'}</span>
+                  </button>
+
+                  <div className="text-pink-300/60 text-xs font-bold font-bubble">
+                    Total: <span className="text-pink-300 font-black">{editTerms.length} cards</span>
+                  </div>
                 </div>
               </div>
-              <p className="text-xs text-pink-200/60 leading-relaxed bg-[#0d0727] p-3 rounded-2xl border border-pink-500/10 font-bubble">
-                💡 <strong>Import Guide:</strong> Upload an Excel (.xlsx, .xls) or CSV file with 2 or 3 columns. Column 1 is <strong>English Term</strong>, Column 2 is <strong>Definition/Meaning</strong>, Column 3 (Optional) is <strong>Part of Speech</strong> (e.g. <em>n, v, adj, adv</em>).
-              </p>
+
+              {/* Status helper summary */}
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-pink-200/60 bg-[#0d0727] p-3 rounded-2xl border border-pink-500/10 font-bubble">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-amber-300 shrink-0" />
+                  <span>
+                    Chức năng kiểm tra chính tả giúp phát hiện lỗi gõ sai từ tiếng Anh (e.g. <em>eleganse</em> ➔ <em>elegance</em>), chuẩn hóa từ loại <em>(n, v, adj, adv)</em> và rà soát ngữ nghĩa.
+                  </span>
+                </div>
+                {Array.from(spellCheckResults.values()).some((r: SpellCheckResult) => r.hasIssue) && (
+                  <span className="text-amber-300 font-extrabold bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-lg shrink-0">
+                    ⚠️ {Array.from(spellCheckResults.values()).filter((r: SpellCheckResult) => r.hasIssue).length} thẻ cần xem lại
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Term List */}
             <div className="space-y-6">
-              {editTerms.map((term, index) => (
-                <div key={term.id} className="bg-[#1c143d] rounded-3xl p-6 border-2 border-pink-500/10 group hover:border-pink-500/30 transition-all relative">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-base font-black text-pink-400/50 font-bubble bg-[#0d0727] px-3.5 py-1 rounded-full border border-pink-500/10">Card #{index + 1}</span>
-                    <div className="flex items-center gap-3">
-                      <button 
-                        onClick={() => speak(term.term)}
-                        className="p-2 bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 hover:text-pink-100 rounded-full transition-colors cursor-pointer"
-                        title="Listen to pronunciation"
+              {editTerms.map((term, index) => {
+                const checkRes = spellCheckResults.get(term.id);
+                const hasCardIssue = checkRes && checkRes.hasIssue;
+
+                return (
+                  <div 
+                    key={term.id} 
+                    className={`bg-[#1c143d] rounded-3xl p-6 border-2 transition-all relative ${
+                      hasCardIssue
+                        ? checkRes.issueType === 'spelling'
+                          ? 'border-rose-500/40 shadow-lg shadow-rose-950/30'
+                          : checkRes.issueType === 'duplicate'
+                          ? 'border-amber-500/40'
+                          : 'border-purple-500/40'
+                        : 'border-pink-500/10 group hover:border-pink-500/30'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-black text-pink-400/50 font-bubble bg-[#0d0727] px-3.5 py-1 rounded-full border border-pink-500/10">Card #{index + 1}</span>
+                        {hasCardIssue && (
+                          <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
+                            checkRes.issueType === 'spelling'
+                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                              : checkRes.issueType === 'duplicate'
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                              : 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                          }`}>
+                            {checkRes.issueType === 'spelling' && '⚠️ Sai chính tả'}
+                            {checkRes.issueType === 'duplicate' && '⚠️ Trùng lặp'}
+                            {checkRes.issueType === 'pos' && 'ℹ️ Từ loại'}
+                            {checkRes.issueType === 'empty' && '⚠️ Trống dữ liệu'}
+                            {checkRes.issueType === 'definition' && '💡 Ngữ nghĩa'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button 
+                          onClick={() => speak(term.term)}
+                          className="p-2 bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 hover:text-pink-100 rounded-full transition-colors cursor-pointer"
+                          title="Listen to pronunciation"
+                        >
+                          <Volume2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => removeTermRow(term.id)}
+                          className="p-2 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white rounded-full transition-colors cursor-pointer"
+                          title="Delete card"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-col md:flex-row gap-6">
+                      <div className="flex-1 space-y-1.5 focus-within:z-10">
+                        <label className="text-[10px] font-bold text-pink-300/50 uppercase tracking-widest font-bubble">English Term (Part of Speech)</label>
+                        <input 
+                          type="text" 
+                          value={term.term}
+                          onChange={(e) => updateTerm(term.id, 'term', e.target.value)}
+                          className={`w-full bg-[#0d0727] border-2 rounded-2xl p-3 focus:outline-none transition-colors text-base font-bold text-white font-bubble ${
+                            hasCardIssue && checkRes.issueType === 'spelling'
+                              ? 'border-rose-500/40 focus:border-rose-500'
+                              : 'border-pink-500/10 focus:border-pink-500/50'
+                          }`}
+                          placeholder="e.g. Elegance (n) or Prevent (v)..."
+                        />
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        <label className="text-[10px] font-bold text-pink-300/50 uppercase tracking-widest font-bubble">Definition / Meaning</label>
+                        <input 
+                          type="text" 
+                          value={term.definition}
+                          onChange={(e) => updateTerm(term.id, 'definition', e.target.value)}
+                          className={`w-full bg-[#0d0727] border-2 rounded-2xl p-3 focus:outline-none transition-colors text-base font-bold text-white font-bubble ${
+                            hasCardIssue && checkRes.issueType === 'empty' && !term.definition.trim()
+                              ? 'border-amber-500/40 focus:border-amber-500'
+                              : 'border-pink-500/10 focus:border-pink-500/50'
+                          }`}
+                          placeholder="e.g. The quality of being graceful..."
+                        />
+                      </div>
+                    </div>
+
+                    {/* Inline Correction / Suggestion Box */}
+                    {hasCardIssue && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="mt-4 pt-4 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0d0727]/60 p-3.5 rounded-2xl"
                       >
-                        <Volume2 className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => removeTermRow(term.id)}
-                        className="p-2 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white rounded-full transition-colors cursor-pointer"
-                        title="Delete card"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
+                        <div className="space-y-1 text-xs font-bubble">
+                          <div className="flex items-center gap-1.5 text-pink-200 font-bold">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span>{checkRes.explanation || 'Phát hiện có thể có lỗi chính tả hoặc từ loại'}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          {checkRes.suggestedTerm && (
+                            <button
+                              onClick={() => handleApplyCorrection(term.id, checkRes.suggestedTerm, undefined)}
+                              className="flex items-center gap-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer hover:scale-[1.02]"
+                              title={`Sửa thành: ${checkRes.suggestedTerm}`}
+                            >
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Sửa: <strong>{checkRes.suggestedTerm}</strong></span>
+                            </button>
+                          )}
+
+                          {checkRes.suggestedDefinition && checkRes.suggestedDefinition !== term.definition && (
+                            <button
+                              onClick={() => handleApplyCorrection(term.id, undefined, checkRes.suggestedDefinition)}
+                              className="flex items-center gap-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer hover:scale-[1.02]"
+                              title={`Áp dụng định nghĩa gợi ý: ${checkRes.suggestedDefinition}`}
+                            >
+                              <Wand2 className="w-3.5 h-3.5 text-purple-400" />
+                              <span>Sửa nghĩa: <strong>{checkRes.suggestedDefinition}</strong></span>
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => handleDismissCorrection(term.id)}
+                            className="text-xs text-white/40 hover:text-white px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                          >
+                            Bỏ qua
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
                   </div>
-                  
-                  <div className="flex flex-col md:flex-row gap-6">
-                    <div className="flex-1 space-y-1.5 focus-within:z-10">
-                      <label className="text-[10px] font-bold text-pink-300/50 uppercase tracking-widest font-bubble">English Term (Part of Speech)</label>
-                      <input 
-                        type="text" 
-                        value={term.term}
-                        onChange={(e) => updateTerm(term.id, 'term', e.target.value)}
-                        className="w-full bg-[#0d0727] border-2 border-pink-500/10 rounded-2xl p-3 focus:border-pink-500/50 focus:outline-none transition-colors text-base font-bold text-white font-bubble"
-                        placeholder="e.g. Elegance (n) or Prevent (v)..."
-                      />
-                    </div>
-                    <div className="flex-1 space-y-1.5">
-                      <label className="text-[10px] font-bold text-pink-300/50 uppercase tracking-widest font-bubble">Definition / Meaning</label>
-                      <input 
-                        type="text" 
-                        value={term.definition}
-                        onChange={(e) => updateTerm(term.id, 'definition', e.target.value)}
-                        className="w-full bg-[#0d0727] border-2 border-pink-500/10 rounded-2xl p-3 focus:border-pink-500/50 focus:outline-none transition-colors text-base font-bold text-white font-bubble"
-                        placeholder="e.g. The quality of being graceful..."
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <button 
@@ -3827,6 +4176,61 @@ export default function App() {
             </button>
           </div>
         </main>
+
+        {/* Pre-Save Spelling Warning Modal */}
+        <AnimatePresence>
+          {showPreSaveModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-[#1c143d] border-2 border-pink-500/30 p-6 rounded-3xl max-w-md w-full shadow-2xl space-y-5 font-bubble"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-300 shrink-0">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-pink-100">Kiểm tra chính tả</h3>
+                    <p className="text-xs text-pink-200/60">Phát hiện một số từ có thể bị gõ sai</p>
+                  </div>
+                </div>
+
+                <p className="text-sm text-pink-100 leading-relaxed bg-[#0d0727] p-4 rounded-2xl border border-pink-500/10">
+                  Học phần của Senpai có một số từ vựng chưa được sửa chính tả. Senpai có muốn tự động sửa các từ này theo gợi ý chuẩn của từ điển trước khi lưu không? 🌸
+                </p>
+
+                <div className="flex flex-col gap-2 pt-2">
+                  <button
+                    onClick={() => {
+                      handleApplyAllCorrections();
+                      handleSaveEditor(true);
+                    }}
+                    className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black py-3 rounded-2xl transition-all shadow-lg text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer border border-emerald-400/40"
+                  >
+                    <Wand2 className="w-4 h-4" />
+                    Tự động sửa tất cả & Lưu ✨
+                  </button>
+
+                  <button
+                    onClick={() => setShowPreSaveModal(false)}
+                    className="w-full bg-[#281d54] hover:bg-[#34266c] text-pink-200 font-bold py-2.5 rounded-2xl transition-all text-xs uppercase tracking-wider cursor-pointer border border-pink-500/20"
+                  >
+                    Xem lại & Tự chỉnh sửa
+                  </button>
+
+                  <button
+                    onClick={() => handleSaveEditor(true)}
+                    className="w-full text-white/40 hover:text-white font-semibold py-2 transition-colors text-xs text-center cursor-pointer"
+                  >
+                    Vẫn tiếp tục lưu không sửa
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }

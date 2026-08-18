@@ -159,6 +159,84 @@ app.post("/api/ai/generate-exercise", async (req, res) => {
   }
 });
 
+// AI Spell & Vocabulary Checker Endpoint
+app.post("/api/ai/spellcheck-terms", async (req, res) => {
+  try {
+    const { terms } = req.body;
+    if (!terms || !Array.isArray(terms) || terms.length === 0) {
+      return res.status(400).json({ error: "Missing required 'terms' array." });
+    }
+
+    const ai = getAiClient();
+
+    // Prepare list of terms for inspection
+    const termsText = terms
+      .map((t: any, index: number) => `Card #${index + 1} [ID: ${t.id}]: Term="${t.term || ''}", Definition="${t.definition || ''}"`)
+      .join('\n');
+
+    const prompt = `You are a precision bilingual English-Vietnamese dictionary assistant and ESL lexicographer.
+Your job is to thoroughly inspect each vocabulary card provided by the user for errors and return suggestions:
+
+1. English Term Spelling: Check if the English term is misspelled or has typos (e.g., "eleganse" -> "elegance", "definate" -> "definite", "occured" -> "occurred").
+2. Part of Speech Formatting: The application uses the standard format "Word (partOfSpeech)", such as "elegance (n)", "prevent (v)", "beautiful (adj)", "quickly (adv)", "phrasal verb", etc. If the part of speech is missing, malformed (e.g. "word (v", "word (noun)"), or incorrect for the word, format the suggestedTerm properly as "Word (pos)".
+3. Vietnamese Definition Quality: Check if the Vietnamese definition has Vietnamese spelling typos, is blank, or does not match the English word. If there's an issue, provide a corrected definition.
+4. If a card is already 100% correct, set hasIssue to false.
+
+Here are the cards to inspect:
+${termsText}
+
+For each card in the exact order, return:
+- id: the matching ID as a string or number
+- hasIssue: true if there is a spelling typo, missing/wrong POS tag, or definition issue; false if perfect.
+- issueType: "spelling" | "pos" | "definition" | "none"
+- suggestedTerm: The corrected English term with part of speech in parentheses, e.g. "elegance (n)" or "prevent (v)".
+- suggestedDefinition: The corrected Vietnamese definition (e.g. "sự thanh lịch, vẻ đẹp tao nhã").
+- explanation: A short, friendly explanation in Vietnamese explaining what was corrected (e.g. "Đã sửa lỗi chính tả từ 'eleganse' thành 'elegance' và chuẩn hóa từ loại (n).").
+`;
+
+    const response = await generateContentWithRetry(ai, {
+      contents: prompt,
+      config: {
+        systemInstruction: "You are an expert ESL dictionary and bilingual English-Vietnamese spell checker. Return strict JSON matching the schema.",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            results: {
+              type: Type.ARRAY,
+              description: "List of spell check results for each card.",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING, description: "ID of the card." },
+                  hasIssue: { type: Type.BOOLEAN, description: "Whether an issue was detected." },
+                  issueType: { type: Type.STRING, description: "Type of issue: spelling, pos, definition, or none." },
+                  suggestedTerm: { type: Type.STRING, description: "Recommended English term with POS like 'word (n)'." },
+                  suggestedDefinition: { type: Type.STRING, description: "Recommended Vietnamese definition." },
+                  explanation: { type: Type.STRING, description: "Short Vietnamese explanation of corrections." }
+                },
+                required: ["id", "hasIssue", "issueType", "suggestedTerm", "suggestedDefinition", "explanation"]
+              }
+            }
+          },
+          required: ["results"]
+        }
+      }
+    });
+
+    const responseText = response.text;
+    if (!responseText) {
+      throw new Error("Empty response from Gemini.");
+    }
+
+    const checkData = JSON.parse(responseText.trim());
+    res.json(checkData);
+  } catch (error: any) {
+    console.error("Error in AI spellcheck:", error);
+    res.status(500).json({ error: error.message || "An error occurred during spellcheck." });
+  }
+});
+
 // Serve Frontend using Vite or Static files
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
