@@ -1715,9 +1715,15 @@ export default function App() {
     if (!correctOption) return;
 
     const typedNormalized = writtenAnswer.trim().toLowerCase().replace(/\s+/g, ' ');
-    const correctNormalized = correctOption.text.trim().toLowerCase().replace(/\s+/g, ' ');
+    const correctFull = correctOption.text.trim().toLowerCase().replace(/\s+/g, ' ');
+    const correctBase = correctOption.text.replace(/\s*[\(\[].*?[\)\]]\s*/g, '').trim().toLowerCase();
+    const typedBase = typedNormalized.replace(/\s*[\(\[].*?[\)\]]\s*/g, '').trim();
 
-    const correct = typedNormalized === correctNormalized;
+    const correct = (
+      typedNormalized === correctFull ||
+      typedNormalized === correctBase ||
+      typedBase === correctBase
+    );
 
     setIsWrittenCorrect(correct);
     setShowWrittenFeedback(true);
@@ -1742,7 +1748,7 @@ export default function App() {
     clearAutoNextTimer();
     autoNextTimerRef.current = setTimeout(() => {
       handleNextWritten();
-    }, correct ? 1400 : 2000);
+    }, correct ? 2200 : 2500);
   };
 
   const handleNextListening = () => {
@@ -3425,10 +3431,11 @@ export default function App() {
                           if (prev.find(item => item.id === q.id)) return prev;
                           return [...prev, q];
                         });
+                        speak(word);
                         clearAutoNextTimer();
                         autoNextTimerRef.current = setTimeout(() => {
                           handleNextWritten();
-                        }, 1800);
+                        }, 2500);
                       }}
                       className="px-6 py-3 bg-[#1e1346] hover:bg-[#281d54] rounded-2xl font-black text-xs uppercase tracking-wider text-pink-300 border border-pink-500/30 transition-all cursor-pointer"
                     >
@@ -3491,11 +3498,11 @@ export default function App() {
                   <button 
                     onClick={() => speak(word)}
                     type="button"
-                    className="p-3 bg-[#1e1346] hover:bg-[#281d54] border border-pink-500/20 text-pink-300 hover:text-pink-200 rounded-full transition-all shrink-0 cursor-pointer"
-                    title="Listen to pronunciation"
+                    className="p-3 bg-[#1e1346] hover:bg-[#281d54] border border-pink-500/20 text-pink-300 hover:text-white rounded-2xl transition-all shrink-0 cursor-pointer flex items-center gap-2 font-bubble active:scale-95"
+                    title="Nghe lại phát âm"
                   >
-                    <Volume2 className="w-5 h-5 hidden" />
-                    <span className="text-xs font-mono">🔈 REPLAY</span>
+                    <Volume2 className="w-5 h-5 text-pink-400" />
+                    <span className="text-xs font-mono font-bold">REPLAY</span>
                   </button>
                 </div>
               </motion.div>
