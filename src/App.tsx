@@ -1741,9 +1741,10 @@ export default function App() {
         if (prev.find(q => q.id === currentQ.id)) return prev;
         return [...prev, currentQ];
       });
-    } else {
-      speak(correctOption.text);
     }
+
+    // Automatically trigger audio playback for the correct term on submit for immediate audio reinforcement
+    playStandardAudio(correctOption.text, { gender: voiceGender });
 
     clearAutoNextTimer();
     autoNextTimerRef.current = setTimeout(() => {

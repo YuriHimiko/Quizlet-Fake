@@ -139,6 +139,23 @@ export const cleanTextForSpeech = (text: string): string => {
     .trim();
 };
 
+// Pre-load and cache voices
+let cachedVoices: SpeechSynthesisVoice[] = [];
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  const loadVoices = () => {
+    try {
+      const v = window.speechSynthesis.getVoices();
+      if (v && v.length > 0) {
+        cachedVoices = v;
+      }
+    } catch (e) {}
+  };
+  loadVoices();
+  if (window.speechSynthesis.onvoiceschanged !== undefined) {
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }
+}
+
 /**
  * Standardized playAudio helper ensuring identical studio-quality sound on all devices
  */
@@ -158,16 +175,9 @@ export const playStandardAudio = async (
 
   options.onStart?.();
 
-  // If a specific voice gender (male/female) is selected,
-  // use Web Speech API with gender voice selection and tuned pitch for exact 100% consistency.
-  if (gender === 'male' || gender === 'female') {
-    fallbackToSpeechSynthesis(cleanText, { ...options, rate, gender, lang }, thisPlayId);
-    return;
-  }
-
-  // Try dictionary native MP3 audio first for 1-2 words if available in cache
+  // 1. Try authentic Oxford/Cambridge dictionary native MP3 audio first if cached
   const cachedDictAudio = dictionaryAudioCache.get(cleanText.toLowerCase());
-  if (cachedDictAudio) {
+  if (cachedDictAudio && gender === 'auto') {
     try {
       const audio = new Audio(cachedDictAudio);
       audio.playbackRate = rate;
@@ -177,61 +187,25 @@ export const playStandardAudio = async (
         if (thisPlayId === currentPlayId) options.onEnd?.();
       };
       audio.onerror = () => {
-        fallbackToSpeechSynthesis(cleanText, { ...options, rate, gender, lang }, thisPlayId);
+        if (thisPlayId === currentPlayId) {
+          fallbackToSpeechSynthesis(cleanText, { ...options, rate, gender, lang }, thisPlayId);
+        }
       };
       if (thisPlayId === currentPlayId) {
         await audio.play();
         return;
       }
     } catch (e) {
-      // Continue to TTS fallback
+      // Fall through to immediate speech synthesis
     }
   }
 
-  // Primary Audio Engine for auto/default: Google Studio TTS MP3 audio stream
-  const audioSourceUrl = getGoogleTtsUrl(cleanText, lang);
-
-  // Play using HTML5 Audio element
-  let hasFiredFallback = false;
-  const triggerFallback = (reason: string, err: any) => {
-    if (thisPlayId !== currentPlayId || hasFiredFallback) return;
-    hasFiredFallback = true;
-    fallbackToSpeechSynthesis(cleanText, { ...options, rate, gender, lang }, thisPlayId);
-  };
-
-  try {
-    const audio = new Audio(audioSourceUrl);
-    audio.playbackRate = rate;
-    activeAudioElement = audio;
-
-    audio.onended = () => {
-      if (activeAudioElement === audio) {
-        activeAudioElement = null;
-      }
-      if (thisPlayId === currentPlayId && !hasFiredFallback) {
-        options.onEnd?.();
-      }
-    };
-
-    audio.onerror = (err) => {
-      triggerFallback("onerror", err);
-    };
-
-    if (thisPlayId !== currentPlayId) return;
-
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise.catch((err) => {
-        triggerFallback("playPromise catch", err);
-      });
-    }
-  } catch (err) {
-    triggerFallback("try catch block", err);
-  }
+  // 2. Direct Instant Speech Synthesis with Accent & Voice Selection
+  fallbackToSpeechSynthesis(cleanText, { ...options, rate, gender, lang }, thisPlayId);
 };
 
 /**
- * Web Speech API Fallback
+ * Direct Instant Web Speech Engine
  */
 const fallbackToSpeechSynthesis = (text: string, options: PlayAudioOptions = {}, playId?: number) => {
   if (playId !== undefined && playId !== currentPlayId) return;
@@ -242,94 +216,96 @@ const fallbackToSpeechSynthesis = (text: string, options: PlayAudioOptions = {},
   }
 
   try {
+    // Ensure synthesis is unpaused
     if (window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
     }
     window.speechSynthesis.cancel();
 
-    // Use a small timeout so cancel completes before speak
-    setTimeout(() => {
-      if (playId !== undefined && playId !== currentPlayId) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    // Keep global reference to prevent Chromium garbage collection bug
+    (window as any)._activeSpeechUtterance = utterance;
 
-      try {
-        const utterance = new SpeechSynthesisUtterance(text);
-        // Retain global reference to avoid GC bug in Chromium
-        (window as any)._activeSpeechUtterance = utterance;
+    const lang = options.lang || (localStorage.getItem('koko_accent') as 'en-GB' | 'en-US') || 'en-GB';
+    utterance.lang = lang;
+    utterance.rate = options.rate || 1.0;
 
-        const lang = options.lang || (localStorage.getItem('koko_accent') as 'en-GB' | 'en-US') || 'en-GB';
-        utterance.lang = lang;
-        utterance.rate = options.rate || 1.0;
+    const gender = options.gender || getVoiceGender();
+    const voices = cachedVoices.length > 0 ? cachedVoices : window.speechSynthesis.getVoices();
+    
+    // Filter appropriate voices
+    const isUk = lang === 'en-GB';
+    const primaryVoices = voices.filter(v => {
+      const vLang = v.lang.toLowerCase().replace('_', '-');
+      const vName = v.name.toLowerCase();
+      if (isUk) {
+        return vLang.includes('en-gb') || vName.includes('uk') || vName.includes('british') || vName.includes('english (united kingdom)');
+      } else {
+        return vLang.includes('en-us') || vName.includes('us') || vName.includes('united states');
+      }
+    });
 
-        const gender = options.gender || getVoiceGender();
-        const voices = window.speechSynthesis.getVoices();
-        const ukVoices = voices.filter(v => v.lang.toLowerCase().replace('_', '-').includes('en-gb') || v.name.toLowerCase().includes('uk') || v.name.toLowerCase().includes('british'));
-        const englishVoices = ukVoices.length > 0 ? [...ukVoices, ...voices.filter(v => v.lang.toLowerCase().startsWith('en'))] : voices.filter(v => v.lang.toLowerCase().startsWith('en'));
+    const fallbackEnglishVoices = voices.filter(v => v.lang.toLowerCase().startsWith('en'));
+    const availableVoices = primaryVoices.length > 0 ? primaryVoices : fallbackEnglishVoices;
 
-        if (gender === 'male') {
-          utterance.pitch = options.pitch ?? 0.82;
-          const maleVoice = englishVoices.find(v => {
-            const name = v.name.toLowerCase();
-            return name.includes('male') || name.includes('david') || name.includes('george') || 
-                   name.includes('alex') || name.includes('daniel') || name.includes('guy') || 
-                   name.includes('james') || name.includes('mark') || name.includes('richard') || 
-                   name.includes('oliver') || name.includes('matthew') || name.includes('thomas') ||
-                   name.includes('arthur');
-          });
-          if (maleVoice) {
-            utterance.voice = maleVoice;
-            utterance.lang = maleVoice.lang;
-          }
-        } else if (gender === 'female') {
-          utterance.pitch = options.pitch ?? 1.12;
-          const femaleVoice = englishVoices.find(v => {
-            const name = v.name.toLowerCase();
-            return name.includes('female') || name.includes('hazel') || name.includes('serena') || 
-                   name.includes('kate') || name.includes('victoria') || name.includes('zira') || 
-                   name.includes('samantha') || name.includes('jenny') || name.includes('karen') || 
-                   name.includes('siri') || name.includes('moira') || name.includes('fiona') || 
-                   name.includes('ava') || name.includes('alice');
-          });
-          if (femaleVoice) {
-            utterance.voice = femaleVoice;
-            utterance.lang = femaleVoice.lang;
-          }
-        } else {
-          utterance.pitch = options.pitch ?? 1.0;
-          const savedVoiceURI = localStorage.getItem('koko_selected_voice_uri');
-          if (savedVoiceURI) {
-            const found = voices.find(v => v.voiceURI === savedVoiceURI);
-            if (found) {
-              utterance.voice = found;
-            }
-          } else if (ukVoices.length > 0) {
-            utterance.voice = ukVoices[0];
-            utterance.lang = ukVoices[0].lang;
-          }
-        }
+    if (gender === 'male') {
+      utterance.pitch = options.pitch ?? 0.82;
+      const maleVoice = availableVoices.find(v => {
+        const name = v.name.toLowerCase();
+        return name.includes('male') || name.includes('david') || name.includes('george') || 
+               name.includes('alex') || name.includes('daniel') || name.includes('guy') || 
+               name.includes('james') || name.includes('mark') || name.includes('richard') || 
+               name.includes('oliver') || name.includes('matthew') || name.includes('thomas') ||
+               name.includes('arthur') || name.includes('natural');
+      });
+      if (maleVoice) {
+        utterance.voice = maleVoice;
+        utterance.lang = maleVoice.lang;
+      }
+    } else if (gender === 'female') {
+      utterance.pitch = options.pitch ?? 1.12;
+      const femaleVoice = availableVoices.find(v => {
+        const name = v.name.toLowerCase();
+        return name.includes('female') || name.includes('hazel') || name.includes('serena') || 
+               name.includes('kate') || name.includes('victoria') || name.includes('zira') || 
+               name.includes('samantha') || name.includes('jenny') || name.includes('karen') || 
+               name.includes('siri') || name.includes('moira') || name.includes('fiona') || 
+               name.includes('ava') || name.includes('alice') || name.includes('natural');
+      });
+      if (femaleVoice) {
+        utterance.voice = femaleVoice;
+        utterance.lang = femaleVoice.lang;
+      }
+    } else {
+      utterance.pitch = options.pitch ?? 1.0;
+      const savedVoiceURI = localStorage.getItem('koko_selected_voice_uri');
+      if (savedVoiceURI) {
+        const found = voices.find(v => v.voiceURI === savedVoiceURI);
+        if (found) utterance.voice = found;
+      } else if (availableVoices.length > 0) {
+        utterance.voice = availableVoices[0];
+        utterance.lang = availableVoices[0].lang;
+      }
+    }
 
-        utterance.onend = () => {
-          (window as any)._activeSpeechUtterance = null;
-          if (playId === undefined || playId === currentPlayId) {
-            options.onEnd?.();
-          }
-        };
-        utterance.onerror = (e) => {
-          (window as any)._activeSpeechUtterance = null;
-          options.onError?.(e);
-          if (playId === undefined || playId === currentPlayId) {
-            options.onEnd?.();
-          }
-        };
-
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume();
-        }
-        window.speechSynthesis.speak(utterance);
-      } catch (e) {
-        options.onError?.(e);
+    utterance.onend = () => {
+      (window as any)._activeSpeechUtterance = null;
+      if (playId === undefined || playId === currentPlayId) {
         options.onEnd?.();
       }
-    }, 15);
+    };
+    utterance.onerror = (e) => {
+      (window as any)._activeSpeechUtterance = null;
+      options.onError?.(e);
+      if (playId === undefined || playId === currentPlayId) {
+        options.onEnd?.();
+      }
+    };
+
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+    window.speechSynthesis.speak(utterance);
   } catch (e) {
     options.onError?.(e);
     options.onEnd?.();
